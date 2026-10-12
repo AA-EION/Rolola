@@ -1,30 +1,32 @@
-# TrueNAS SCALE 24.10+  →  Apps → Discover Apps → ⋮ → "Install via YAML"
-# Edit the lines marked  # <-- EDIT
+# Office Jukebox for TrueNAS SCALE 24.10+
+# Apps → Discover Apps → ⋮ (top right) → "Install via YAML" → paste this.
+# Only the two volume paths depend on your pool name (replace "tank" if yours differs: `zpool list`).
 services:
   jukebox:
-    image: ghcr.io/aa-eion/rolola:1.0.0
+    image: ghcr.io/aa-eion/rolola:edge
+    pull_policy: always
     container_name: jukebox
     restart: unless-stopped
-    user: "568:568"                        # TrueNAS "apps" user
+    user: "568:568"                                 # TrueNAS "apps" user
     group_add:
-      - "29"                               # <-- EDIT: GID of the host "audio" group (getent group audio)
+      - "29"                                        # host "audio" group (getent group audio → 29)
     devices:
       - /dev/snd:/dev/snd
     ports:
       - "8080:8080"
     volumes:
-      - /mnt/tank/apps/jukebox:/data                # <-- EDIT: dataset owned by 568:568
-      - /mnt/tank/media/music:/music:ro             # <-- EDIT: your music (read-only)
+      - /mnt/tank/apps/jukebox:/data                # app data (must be owned by 568:568)
+      - /mnt/tank/media/music:/music:ro             # your music library, read-only
     environment:
-      TZ: "America/Bogota"                          # <-- EDIT
-      AUDIO_DEVICE: "plughw:CARD=Generic_1,DEV=0"   # <-- EDIT: by card NAME (see README)
+      TZ: "America/Bogota"
+      AUDIO_DEVICE: "plughw:CARD=Generic_1,DEV=0"   # analog output (card "Generic_1")
       JUKEBOX_DEFAULT_LANGUAGE: "es"
-      # ADMIN_PASSWORD: "change-me"
-      # TRUSTED_PROXIES: "192.168.1.10"             # your reverse proxy
-      # AUTH_HEADER: "Remote-User"
-    # cap_add: [SYS_NICE]                           # optional: higher priority for audio
+      ADMIN_PASSWORD: "CambiaEstaClave2026"         # change before installing
+    cap_add:
+      - SYS_NICE                                    # lets the audio engine run at high priority
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/healthz"]
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 20s
