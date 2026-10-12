@@ -125,23 +125,39 @@ class Auth:
     def _touch(self, user_id: int) -> None:
         self.db.execute("UPDATE users SET last_seen=? WHERE id=?", (time.time(), user_id))
 
+    def find_guest(self, name: str) -> dict | None:
+        return self.db.one(
+            "SELECT * FROM users WHERE kind='guest' AND lower(name)=lower(?) ORDER BY last_seen DESC LIMIT 1", (name,))
+
     def create_guest(self, name: str) -> tuple[Identity, str]:
+        """Join with a name. The name *is* the identity: the same name on another
+        device (or an incognito window) continues as the same person."""
         name = clean_name(name)
         now = time.time()
-        uid = self.db.execute(
-            "INSERT INTO users(name, kind, created_at, last_seen) VALUES (?, 'guest', ?, ?)", (name, now, now)
-        ).lastrowid
+        row = self.find_guest(name)
+        if row:
+            uid, name, role, banned = row["id"], row["name"], row["role"], bool(row["banned"])
+            self._touch(uid)
+        else:
+            uid = self.db.execute(
+                "INSERT INTO users(name, kind, created_at, last_seen) VALUES (?, 'guest', ?, ?)", (name, now, now)
+            ).lastrowid
+            role, banned = "user", False
         token = secrets.token_urlsafe(32)
         self.db.execute(
             "INSERT INTO sessions(token_hash, user_id, created_at, last_seen) VALUES (?,?,?,?)",
             (hash_token(token), uid, now, now),
         )
-        return Identity(uid, name, False, "guest", session_hash=hash_token(token)), token
+        return Identity(uid, name, role == "admin", "guest", banned=banned, session_hash=hash_token(token)), token
 
     def rename(self, ident: Identity, name: str) -> None:
         if ident.kind == "proxy":
             raise ValueError("err.name_from_proxy")
-        self.db.execute("UPDATE users SET name=? WHERE id=?", (clean_name(name), ident.user_id))
+        name = clean_name(name)
+        other = self.find_guest(name)
+        if other and other["id"] != ident.user_id:
+            raise ValueError("err.name_taken")
+        self.db.execute("UPDATE users SET name=? WHERE id=?", (name, ident.user_id))
 
     def elevate(self, ident: Identity) -> None:
         if ident.session_hash:
@@ -152,8 +168,20 @@ class Auth:
             self.db.execute("UPDATE sessions SET is_admin=0 WHERE token_hash=?", (ident.session_hash,))
 
     def logout(self, ident: Identity) -> None:
+        """Sign out this device. Signing out of the last device makes the name
+        disappear right away (unless it still has tracks in the queue)."""
         if ident.session_hash:
             self.db.execute("DELETE FROM sessions WHERE token_hash=?", (ident.session_hash,))
+        if ident.kind == "guest":
+            forget_guests(self.db, [ident.user_id])
+
+    def touch_online(self, idents: list[Identity]) -> None:
+        """People with the page open count as active even without clicking."""
+        now = time.time()
+        for ident in idents:
+            self.db.execute("UPDATE users SET last_seen=? WHERE id=?", (now, ident.user_id))
+            if ident.session_hash:
+                self.db.execute("UPDATE sessions SET last_seen=? WHERE token_hash=?", (now, ident.session_hash))
 
     def _proxy_identity(self, headers, state: dict) -> Identity | None:
         cfg = self.config
@@ -239,3 +267,39 @@ class Auth:
             (name, hash_token(token), uid, int(is_admin), now),
         )
         return token
+
+
+def forget_guests(db: Database, user_ids: list[int]) -> int:
+    """Delete guests that have no device signed in and nothing queued.
+    Their favourites and personal playlists go with them; history rows stay
+    (anonymous) until they age out."""
+    removed = 0
+    for uid in user_ids:
+        busy = db.one(
+            "SELECT 1 FROM users u WHERE u.id=? AND (u.kind!='guest' OR u.role='admin' "
+            "OR EXISTS (SELECT 1 FROM sessions s WHERE s.user_id=u.id) "
+            "OR EXISTS (SELECT 1 FROM queue q WHERE q.user_id=u.id))", (uid,))
+        if busy:
+            continue
+        db.execute("DELETE FROM playlists WHERE owner_id=? AND shared=0", (uid,))
+        removed += db.execute("DELETE FROM users WHERE id=? AND kind='guest'", (uid,)).rowcount
+    return removed
+
+
+def merge_duplicate_guests(db: Database) -> int:
+    """Older versions created one user per browser; fold same-name guests together."""
+    merged = 0
+    groups = db.all("SELECT lower(name) AS n FROM users WHERE kind='guest' GROUP BY lower(name) HAVING COUNT(*) > 1")
+    for g in groups:
+        rows = db.all("SELECT id FROM users WHERE kind='guest' AND lower(name)=? ORDER BY last_seen DESC", (g["n"],))
+        keep, others = rows[0]["id"], [r["id"] for r in rows[1:]]
+        for uid in others:
+            for table in ("sessions", "queue", "history"):
+                db.execute(f"UPDATE {table} SET user_id=? WHERE user_id=?", (keep, uid))
+            db.execute("UPDATE playlists SET owner_id=? WHERE owner_id=?", (keep, uid))
+            db.execute("UPDATE playlist_items SET added_by=? WHERE added_by=?", (keep, uid))
+            db.execute("INSERT OR IGNORE INTO favorites(user_id, track_key, track, created_at) "
+                       "SELECT ?, track_key, track, created_at FROM favorites WHERE user_id=?", (keep, uid))
+            db.execute("DELETE FROM users WHERE id=?", (uid,))
+            merged += 1
+    return merged

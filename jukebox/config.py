@@ -68,6 +68,8 @@ class Config:
     ytdlp_auto_update: bool
     library_scan_interval_min: int
     disable_audio: bool
+    guest_expire_days: int
+    history_days: int
     defaults: dict[str, str] = field(default_factory=dict)
 
     @property
@@ -129,5 +131,7 @@ def load_config() -> Config:
         ytdlp_auto_update=_env_bool("YTDLP_AUTO_UPDATE", True),
         library_scan_interval_min=_env_int("LIBRARY_SCAN_INTERVAL_MIN", 60),
         disable_audio=_env_bool("DISABLE_AUDIO", False),
+        guest_expire_days=max(1, _env_int("GUEST_EXPIRE_DAYS", 30)),
+        history_days=max(1, _env_int("HISTORY_DAYS", 30)),
         defaults=defaults,
     )

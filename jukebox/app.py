@@ -23,6 +23,7 @@ from .auth import COOKIE, Identity
 from .config import Config, load_config
 from .db import dumps, loads
 from .engine import alsa_cards, snd_access
+from .housekeeping import cleanup
 from .hub import Client
 from .logs import RING, get_logger, setup_logging
 from .models import Track
@@ -148,6 +149,7 @@ def create_app(config: Config | None = None) -> FastAPI:
                     await p.start()
                 except Exception as exc:
                     p.fail(exc)
+        cleanup(svc.db, config.guest_expire_days, config.history_days, vacuum=True)
         await player.start()
         background.append(asyncio.create_task(_periodic()))
         log.info("jukebox started", extra={"ctx": {"version": __version__, "port": config.port,
@@ -161,6 +163,8 @@ def create_app(config: Config | None = None) -> FastAPI:
     async def _periodic():
         last_scan = time.time()
         last_update = time.time() - 86400 + 600  # first yt-dlp update 10 min after start
+        last_cleanup = last_vacuum = time.time()
+        last_touch = 0.0
         while True:
             await asyncio.sleep(60)
             try:
@@ -172,7 +176,15 @@ def create_app(config: Config | None = None) -> FastAPI:
                 if config.ytdlp_auto_update and time.time() - last_update > 86400:
                     last_update = time.time()
                     asyncio.create_task(svc.ytdlp.update())
-                svc.db.execute("DELETE FROM sessions WHERE last_seen < ?", (time.time() - 400 * 86400,))
+                if time.time() - last_touch > 300:
+                    last_touch = time.time()
+                    svc.auth.touch_online([c.ident for c in svc.hub.clients if c.ident])
+                if time.time() - last_cleanup > 3600:
+                    last_cleanup = time.time()
+                    vacuum = time.time() - last_vacuum > 86400
+                    if vacuum:
+                        last_vacuum = time.time()
+                    cleanup(svc.db, config.guest_expire_days, config.history_days, vacuum=vacuum)
             except Exception:
                 log.exception("periodic task failed")
 
@@ -258,17 +270,25 @@ def create_app(config: Config | None = None) -> FastAPI:
     @app.get("/api/me", tags=["session"])
     async def me(request: Request):
         ident = identity(request)
-        return {"user": ident.public() if ident else None,
-                "proxy_auth": bool(config.auth_header),
-                "admin_password_from_env": svc.auth.password_from_env}
+        resp = JSONResponse({"user": ident.public() if ident else None,
+                             "proxy_auth": bool(config.auth_header),
+                             "admin_password_from_env": svc.auth.password_from_env})
+        token = request.cookies.get(COOKIE)
+        if ident and ident.session_hash and token:  # sliding expiry: every visit renews it
+            resp.set_cookie(COOKIE, token, max_age=config.guest_expire_days * 86400, httponly=True,
+                            samesite="lax", path=cookie_path(request), secure=secure_cookie(request))
+        return resp
 
     @app.post("/api/session/join", tags=["session"], dependencies=[rate("join", 5, 60)])
     async def join(body: JoinBody, request: Request):
-        if identity(request):
+        current = identity(request)
+        if current and current.kind != "guest":
             raise ApiError("err.already_joined")
+        if current:  # switching names on this device: sign the old one out first
+            svc.auth.logout(current)
         ident, token = svc.auth.create_guest(body.name)
         resp = JSONResponse({"user": ident.public()})
-        resp.set_cookie(COOKIE, token, max_age=400 * 86400, httponly=True, samesite="lax",
+        resp.set_cookie(COOKIE, token, max_age=config.guest_expire_days * 86400, httponly=True, samesite="lax",
                         path=cookie_path(request), secure=secure_cookie(request))
         return resp
 

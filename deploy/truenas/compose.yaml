@@ -24,6 +24,11 @@ services:
       ADMIN_PASSWORD: "CambiaEstaClave2026"         # change before installing
     cap_add:
       - SYS_NICE                                    # lets the audio engine run at high priority
+    logging:                                        # container logs never grow past ~10 MB
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/healthz"]
       interval: 30s

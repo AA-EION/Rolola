@@ -89,6 +89,8 @@ Two layers:
 | `ADMIN_USERS` | *(empty)* | Comma-separated proxy usernames that are admins. |
 | `ADMIN_GROUPS` | *(empty)* | Comma-separated proxy groups whose members are admins. |
 | `CACHE_MAX_MB` | `2048` | Size cap of the downloaded-audio cache (LRU). |
+| `GUEST_EXPIRE_DAYS` | `30` | A device not used for this long is signed out; a name nobody uses for this long (with nothing queued) is deleted. |
+| `HISTORY_DAYS` | `30` | Play history is kept this long (max 5 000 rows). |
 | `YTDLP_AUTO_UPDATE` | `true` | Install the latest yt-dlp into `/data/ytdlp` daily (10 min after start, then every 24 h). |
 | `LIBRARY_SCAN_INTERVAL_MIN` | `60` | Rescan the music folder every N minutes (incremental; `0` = only manual). |
 | `LOG_LEVEL` / `LOG_JSON` | `INFO` / `true` | Structured JSON logs on stdout (also viewable in *Admin → Logs*). |
@@ -118,6 +120,18 @@ Two layers:
 | `substitute_unavailable` | `true` | Play tracks from a disabled source via another source (marked in the UI). |
 | `allow_private_urls` | `false` | Allow user links to LAN addresses (SSRF protection). |
 | `language` | `en` | Default UI language (`en`, `es`); each person can switch. |
+
+### People and storage (nothing to manage)
+
+* **No passwords or PINs for listeners.** Type a name and you're in. The name *is* the identity:
+  the same name on another PC, phone or incognito window continues as the same person (same queue,
+  favourites and history). Two windows count as one listener.
+* **Things expire by themselves.** A device not opened for `GUEST_EXPIRE_DAYS` (30) is signed out.
+  A name nobody uses for that long, with nothing queued, is deleted with its favourites and
+  personal playlists (shared playlists stay). *Cerrar sesión* on your last device deletes it immediately.
+* **Bounded storage.** History keeps 30 days, lyrics/match/loudness caches 90 days, audio cache
+  `CACHE_MAX_MB`. The database compacts itself daily. App logs live in memory only (*Admin → Logs*);
+  container logs are capped by the compose file. The admin password is the only password.
 
 ### How the fair queue works
 

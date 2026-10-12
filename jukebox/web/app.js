@@ -589,7 +589,7 @@ async function loadLib(body) {
       const toggle = h('label', { class: 'switch' }, h('span', {}, t('lib.mine_only')), h('input', { type: 'checkbox', checked: mine, onchange: (e) => { store.set('histMine', e.target.checked ? '1' : '0'); loadLib(body); } }));
       fill(toggle, rows.length ? h('div', { class: 'list' }, ...rows.map((r) => simpleRow(r.track, [
         r.outcome && r.outcome !== 'played' ? h('span', { class: 'chip ' + (r.outcome === 'error' ? 'bad' : 'warn'), style: { marginRight: '6px' }, title: r.error || '' }, t('lib.outcome.' + r.outcome)) : null,
-        srcName(r.track.source), ' · ', r.autoplay ? t('now.autoplay') : t('lib.added_by', { name: r.user || '?' }), ' · ',
+        srcName(r.track.source), ' · ', r.autoplay ? t('now.autoplay') + ' · ' : r.user ? t('lib.added_by', { name: r.user }) + ' · ' : '',
         new Date(r.started_at * 1000).toLocaleTimeString(getLang(), { hour: '2-digit', minute: '2-digit' })]))) : h('div', { class: 'empty' }, t('lib.empty')));
     } else if (S.libTab === 'favorites') {
       const rows = await api('GET', 'api/favorites');
