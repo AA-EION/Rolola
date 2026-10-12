@@ -78,6 +78,8 @@ class Player:
         self.preloaded: tuple[int, Pending, Track, Playable] | None = None  # (mpv_id, ...)
         self.paused = False
         self.paused_by_schedule = False
+        self.paused_since: float | None = None   # when the current pause started
+        self.stopped = False                      # stopped by an admin: stay silent until someone acts
         self.muted = False
         self.position = 0.0
         self.duration: float | None = None
@@ -110,12 +112,22 @@ class Player:
     async def start(self) -> None:
         self.engine.device = self.audio_device()
         self.engine.initial_volume = min(self.volume, int(self.settings.get("max_volume")))
+        self.stopped = bool(self.settings.get("player_stopped"))
         saved = self.settings.get("player_resume")
+        if saved:
+            since = saved.get("paused_since") if saved.get("paused") else saved.get("saved_at")
+            if self._is_stale(since):
+                # paused (or switched off) long ago: start fresh instead of resuming yesterday's music
+                log.info("discarding stale playback state from before the restart")
+                self.settings.reset("player_resume")
+                self.queue.remove_older_than(since)
+                saved = None
         if saved:
             try:
                 self._resume = Pending(track=Track.model_validate(saved["track"]), user_id=saved.get("user_id"),
                                        autoplay=saved.get("autoplay", False), resume_at=saved.get("position"))
                 self.paused = bool(saved.get("paused"))
+                self.paused_since = saved.get("paused_since") if self.paused else None
             except Exception:
                 self._resume = None
         await self.engine.start()
@@ -162,7 +174,11 @@ class Player:
     def _can_play(self) -> bool:
         if self.settings.get("schedule_enabled") and not schedule_allows(self.settings.get("schedule")):
             return False
-        return not self.paused
+        return not self.paused and not self.stopped
+
+    def _is_stale(self, since: float | None) -> bool:
+        minutes = int(self.settings.get("stale_minutes") or 0)
+        return bool(minutes > 0 and since and time.time() - since > minutes * 60)
 
     def status(self) -> str:
         if self.audio_fault:
@@ -611,6 +627,7 @@ class Player:
             self.settings.set("player_resume", {
                 "track": p.track.model_dump(), "user_id": p.user_id, "autoplay": p.autoplay,
                 "position": self.live_position() if cur else p.resume_at, "paused": self.paused,
+                "paused_since": self.paused_since, "saved_at": time.time(),
             })
         elif self.settings.get("player_resume"):
             self.settings.reset("player_resume")
@@ -670,11 +687,17 @@ class Player:
                     log.info("quiet hours started: pausing")
                     await self.engine.set("pause", True)
                     self.paused = self.paused_by_schedule = True
+                    self.paused_since = time.time()
                     self.changed()
                 elif allowed and self.paused_by_schedule:
                     log.info("quiet hours ended: resuming")
                     self.paused_by_schedule = False
                     await self.resume_playback()
+                if self.paused and self._is_stale(self.paused_since):
+                    # nobody came back: forget the paused song and the old queue. After quiet
+                    # hours autoplay may start again; after a manual pause stay silent.
+                    log.info("paused for too long: clearing the paused song and the queue")
+                    await self.stop_all(clear_queue=True, keep_silent=not self.paused_by_schedule)
                 if self.audio_fault and self.engine.alive and not self.current:
                     self.kick()  # retry the sound card
                 elif not self.current:
@@ -767,7 +790,16 @@ class Player:
         return []
 
     # ------------------------------------------------------------ commands
-    def on_tracks_added(self, items: list[QueueItem]) -> None:
+    async def on_tracks_added(self, items: list[QueueItem]) -> None:
+        if self.paused and self._is_stale(self.paused_since):
+            # yesterday's paused song and leftovers go; the new track plays right away
+            since = self.paused_since
+            await self.stop_all(clear_queue=False, keep_silent=False)
+            self.queue.remove_older_than(since)
+        elif self.paused and not self.current:
+            self.paused, self.paused_since = False, None  # nothing to resume: just play the new track
+        if self.stopped:
+            self._set_stopped(False)
         cur = self.current
         if cur and cur.pending.autoplay and (self.settings.get("autoplay_yield") or cur.track.live):
             asyncio.create_task(self.skip(None, reason="autoplay_yield", force=True))
@@ -830,6 +862,8 @@ class Player:
         asyncio.create_task(self._check_votes())
 
     async def pause(self) -> None:
+        if not self.paused:
+            self.paused_since = time.time()
         self.paused = True
         self.paused_by_schedule = False
         if self.current:
@@ -838,7 +872,11 @@ class Player:
         self.changed()
 
     async def resume_playback(self) -> None:
-        self.paused = False
+        if self.paused and self._is_stale(self.paused_since):
+            await self.stop_all(clear_queue=True, keep_silent=False)  # play fresh music, not yesterday's
+        self.paused, self.paused_since = False, None
+        if self.stopped:
+            self._set_stopped(False)
         if self.current:
             await self.engine.set("pause", False)
             self.position_at = time.time()
@@ -873,6 +911,40 @@ class Player:
     async def apply_max_volume(self) -> None:
         if self.volume > int(self.settings.get("max_volume")):
             await self.set_volume(int(self.settings.get("max_volume")), 0)
+
+    def _set_stopped(self, value: bool) -> None:
+        self.stopped = value
+        self.settings.set("player_stopped", value)
+
+    async def stop_all(self, clear_queue: bool = True, keep_silent: bool = True) -> None:
+        """Stop the music for good: end the current song, forget anything paused or
+        prepared and (optionally) empty the queue. With ``keep_silent`` nothing, not
+        even autoplay, starts again until someone adds a song or presses play."""
+        async with self._lock:
+            if self._advance_task and not self._advance_task.done():
+                self._advance_task.cancel()
+            self.loading = None
+            if self.current:
+                self._finish("stopped")
+            self.preloaded = None
+            self._resume = None
+            self._ready.clear()
+            self.autoplay_buffer.clear()
+            if clear_queue:
+                self.queue.clear()
+            self.paused = self.paused_by_schedule = False
+            self.paused_since = None
+            self.muted = False
+            self._set_stopped(keep_silent)
+            if self.settings.get("player_resume"):
+                self.settings.reset("player_resume")
+            if self.engine.alive:
+                try:
+                    await self.engine.command("stop")
+                    await self.engine.set("mute", False)
+                except EngineError:
+                    pass
+            self.changed()
 
     async def panic(self, on: bool) -> None:
         """Admin "mute all / pause all"."""

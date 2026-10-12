@@ -49,6 +49,7 @@ DEFAULTS: dict[str, Any] = {
     "substitute_unavailable": True,
     "audio_device": None,            # None -> AUDIO_DEVICE env
     "prefetch_count": 2,
+    "stale_minutes": 60,             # paused/stopped this long -> drop the paused song and old queue
     "sponsorblock": True,
     "sponsorblock_categories": ["music_offtopic"],
     "lyrics": True,

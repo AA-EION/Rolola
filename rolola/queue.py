@@ -172,6 +172,15 @@ class QueueManager:
         self.on_change()
         return n
 
+    def remove_older_than(self, ts: float | None) -> int:
+        """Drop items queued before ``ts`` (leftovers from a stale session)."""
+        if not ts:
+            return 0
+        n = self.db.execute("DELETE FROM queue WHERE added_at < ?", (ts,)).rowcount
+        if n:
+            self.on_change()
+        return n
+
     def mark_served(self, user_id: int | None, at: float | None = None) -> None:
         if user_id is not None:
             self.last_served[user_id] = at or time.time()

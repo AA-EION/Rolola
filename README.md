@@ -112,6 +112,7 @@ Two layers:
 | `autoplay_mode` | `similar` | When the queue is empty: `similar` (YouTube mix from recent tracks), `history` (office favourites), `local_shuffle`, `playlist`, `radio`, `off`. |
 | `autoplay_yield` | `true` | A user's track interrupts autoplay right away. |
 | `schedule_enabled` / `schedule` | `false` | Quiet hours: music only inside the weekly windows (e.g. Mon–Fri 09:00–18:00). |
+| `stale_minutes` | `60` | Paused for longer than this → the paused song and the old queue are dropped, so the next song someone adds plays right away (also after a restart). `0` = never. |
 | `normalize` / `target_lufs` | `true` / `-18` | Loudness normalisation (EBU R128 measured per track). |
 | `stream_gain_db` | `-4` | Fixed gain for radio streams (usually mastered louder). |
 | `sponsorblock` | `true` | Skip non-music parts of YouTube music videos. |
@@ -132,6 +133,16 @@ Two layers:
 * **Bounded storage.** History keeps 30 days, lyrics/match/loudness caches 90 days, audio cache
   `CACHE_MAX_MB`. The database compacts itself daily. App logs live in memory only (*Admin → Logs*);
   container logs are capped by the compose file. The admin password is the only password.
+
+### Stopping the music
+
+* **Pause** (anyone, unless disabled): pauses the current song. A short pause resumes where it was.
+* **Admin → Detener y vaciar todo** (*Stop & clear everything*): ends the song, empties the queue and
+  keeps Rolola silent (autoplay included) until someone adds a song or presses play. Use it when
+  everyone leaves the office.
+* **Automatic fresh start:** if the music stays paused for more than `stale_minutes` (60), the paused
+  song and yesterday's queue are discarded. The first song added the next morning plays immediately,
+  with nothing to skip. With quiet hours enabled, the music also pauses and resumes by itself.
 
 ### How the fair queue works
 

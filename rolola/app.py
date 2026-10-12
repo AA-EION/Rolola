@@ -131,6 +131,10 @@ class PanicBody(BaseModel):
     on: bool
 
 
+class StopBody(BaseModel):
+    clear_queue: bool = True
+
+
 # ---------------------------------------------------------------- app factory
 def create_app(config: Config | None = None) -> FastAPI:
     config = config or load_config()
@@ -439,7 +443,7 @@ def create_app(config: Config | None = None) -> FastAPI:
         if not ok:
             raise ApiError("err.nothing_added", 400, reasons=skipped[:5])
         added, dropped = player.queue.add(ok, ident.user_id, ident.is_admin)
-        player.on_tracks_added(added)
+        await player.on_tracks_added(added)
         position = None
         order = [i.id for i in player.queue.ordered()]
         if added and added[0].id in order:
@@ -669,7 +673,7 @@ def create_app(config: Config | None = None) -> FastAPI:
         if not ok:
             raise ApiError("err.nothing_added", 400, reasons=skipped[:5])
         added, dropped = player.queue.add(ok, ident.user_id, ident.is_admin)
-        player.on_tracks_added(added)
+        await player.on_tracks_added(added)
         return {"added": len(added), "dropped_by_limit": dropped}
 
     # ------------------------------------------------------------ art
@@ -839,6 +843,15 @@ def create_app(config: Config | None = None) -> FastAPI:
     async def panic(body: PanicBody, ident: Identity = Depends(admin)):
         await player.panic(body.on)
         log.warning("panic %s", "ON" if body.on else "off", extra={"ctx": {"by": ident.name}})
+        return {"ok": True}
+
+    @app.post("/api/admin/stop", tags=["admin"])
+    async def stop_everything(body: StopBody, ident: Identity = Depends(admin)):
+        """Stop the music and (by default) empty the queue. Rolola then stays silent,
+        autoplay included, until someone adds a song or presses play."""
+        await player.stop_all(clear_queue=body.clear_queue, keep_silent=True)
+        log.info("stopped everything", extra={"ctx": {"by": ident.name, "clear_queue": body.clear_queue}})
+        player._toast("toast.stopped_all", "info")
         return {"ok": True}
 
     @app.post("/api/admin/test-tone", tags=["admin"])

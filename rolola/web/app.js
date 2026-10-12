@@ -663,6 +663,7 @@ const SETTING_META = {
   user_can_seek: 'bool', user_can_volume: 'bool', autoplay_mode: ['similar', 'local_shuffle', 'history', 'playlist', 'radio', 'off'],
   autoplay_yield: 'bool', normalize: 'bool', target_lufs: 'float', stream_gain_db: 'float', sponsorblock: 'bool', lyrics: 'bool',
   substitute_unavailable: 'bool', public_display: 'bool', allow_private_urls: 'bool', language: ['en', 'es'], prefetch_count: 'int',
+  stale_minutes: 'int',
 };
 function settingInput(key, value, type) {
   if (type === 'bool') return h('label', { class: 'switch' }, h('span', {}, t('set.' + key)), h('input', { type: 'checkbox', 'data-key': key, 'data-type': 'bool', checked: !!value }));
@@ -694,6 +695,7 @@ function viewAdmin() {
   const st = S.state;
   const quick = h('div', { class: 'row wrap', style: { marginBottom: '12px' } },
     h('button', { class: 'btn ' + (st?.muted ? 'primary' : 'danger'), onclick: () => act(() => api('POST', 'api/admin/panic', { on: !st?.muted })) }, icon(st?.muted ? 'play' : 'pause'), st?.muted ? t('admin.unpanic') : t('admin.panic')),
+    h('button', { class: 'btn danger', onclick: () => confirmSheet(t('admin.stop_all_confirm'), () => act(() => api('POST', 'api/admin/stop', { clear_queue: true }))) }, icon('close'), t('admin.stop_all')),
     h('button', { class: 'btn', disabled: !st?.now, onclick: () => act(() => api('POST', 'api/player/skip')) }, icon('skip'), t('admin.force_skip')),
     h('button', { class: 'btn', onclick: () => act(() => api('POST', 'api/admin/test-tone')) }, icon('volume'), t('admin.test_tone')));
   return [h('h1', {}, t('nav.admin')), ...banners(), quick, h('div', { class: 'admin-grid' },

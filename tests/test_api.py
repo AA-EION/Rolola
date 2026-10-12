@@ -162,3 +162,37 @@ def test_duplicates_are_refused(client):
     assert u.post("/api/queue", json={"track": t}, headers=H).status_code == 200
     r = join(client, "Kim").post("/api/queue", json={"track": t}, headers=H)
     assert r.status_code == 400 and "already in the queue" in r.json()["params"]["reasons"][0]
+
+
+def test_stop_everything_and_stale_pause(client):
+    player = client.app_svc.player
+    player.queue.clear()
+    admin = join(client, "Stopper")
+    admin.post("/api/session/admin", json={"password": "admin-pass-123"}, headers=H)
+    u = join(client, "Uma")
+    state = lambda: u.get("/api/state").json()  # noqa: E731
+    for q in ("alpha", "charlie"):
+        assert u.post("/api/queue", json={"track": search(u, q)[0]}, headers=H).status_code == 200
+    wait_for(lambda: state()["now"])
+
+    # "stop & clear everything": silent, queue empty, and autoplay must not take over
+    assert admin.post("/api/admin/stop", json={}, headers=H).status_code == 200
+    wait_for(lambda: (s := state())["now"] is None and s["queue_total"] == 0)
+    admin.put("/api/admin/settings", json={"values": {"autoplay_mode": "local_shuffle"}}, headers=H)
+    time.sleep(1.5)
+    assert state()["now"] is None and state()["status"] == "idle"
+
+    # the next song someone adds plays right away
+    u.post("/api/queue", json={"track": search(u, "delta")[0]}, headers=H)
+    wait_for(lambda: ((state()["now"] or {}).get("track") or {}).get("title") == "Delta")
+
+    # a pause from "yesterday": the new song replaces the paused one and the leftovers
+    u.post("/api/queue", json={"track": search(u, "alpha")[0]}, headers=H)
+    u.post("/api/player/pause", headers=H)
+    player.paused_since = time.time() - 3 * 3600
+    client.app_svc.db.execute("UPDATE queue SET added_at=?", (time.time() - 4 * 3600,))
+    v = join(client, "Vic")
+    v.post("/api/queue", json={"track": search(v, "charlie")[0]}, headers=H)
+    s = wait_for(lambda: (s := state())["now"] and s["now"]["track"]["title"] == "Charlie" and s)
+    assert s["status"] == "playing" and all(q["track"]["title"] != "Alpha" for q in s["queue"])
+    admin.put("/api/admin/settings", json={"values": {"autoplay_mode": "off"}}, headers=H)
