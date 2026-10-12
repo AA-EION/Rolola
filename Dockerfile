@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# Office Jukebox — one container: web app + mpv audio engine + yt-dlp.
+# Rolola — one container: web app + mpv audio engine + yt-dlp.
 # Multi-arch (linux/amd64, linux/arm64): every base image below is multi-arch.
 
 # Base images are build args so you can point them at a registry mirror.
@@ -19,7 +19,8 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       python3 python3-venv python3-pip \
       mpv ffmpeg alsa-utils ca-certificates tzdata tini curl \
- && rm -rf /var/lib/apt/lists/* /usr/share/doc/* /usr/share/man/*
+ && rm -rf /var/lib/apt/lists/* /usr/share/man/* \
+ && find /usr/share/doc -type f ! -name copyright -delete   # keep license files (GPL/LGPL)
 
 FROM base AS build
 COPY requirements.txt /tmp/requirements.txt
@@ -30,12 +31,16 @@ RUN --mount=type=secret,id=ca_bundle,required=false \
  && /opt/venv/bin/pip install --no-compile -r /tmp/requirements.txt
 
 FROM base
+LABEL org.opencontainers.image.title="Rolola" \
+      org.opencontainers.image.description="Rolola: the shared office jukebox" \
+      org.opencontainers.image.source="https://github.com/AA-EION/Rolola" \
+      org.opencontainers.image.licenses="LicenseRef-PolyForm-Noncommercial-1.0.0"
 COPY --from=deno /deno /usr/local/bin/deno
 COPY --from=build /opt/venv /opt/venv
 # 568 is the default "apps" user on TrueNAS SCALE; override with --user if needed.
-RUN groupadd -g 568 jukebox && useradd -u 568 -g 568 -G audio -d /data -M -s /usr/sbin/nologin jukebox \
+RUN groupadd -g 568 rolola && useradd -u 568 -g 568 -G audio -d /data -M -s /usr/sbin/nologin rolola \
  && mkdir -p /data /music && chown 568:568 /data
-COPY jukebox /app/jukebox
+COPY rolola /app/rolola
 ENV PATH=/opt/venv/bin:$PATH \
     PYTHONPATH=/app \
     DATA_DIR=/data \
@@ -50,4 +55,4 @@ VOLUME ["/data"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -fsS "http://127.0.0.1:${PORT}/healthz" || exit 1
 ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["python3", "-m", "jukebox"]
+CMD ["python3", "-m", "rolola"]

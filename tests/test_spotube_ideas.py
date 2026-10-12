@@ -1,9 +1,9 @@
 """Tests for the features adapted from Spotube: matching, LRC parsing, links."""
 
-from jukebox.lyrics import parse_lrc
-from jukebox.matcher import norm, rank, score
-from jukebox.models import Track
-from jukebox.providers.spotify_links import parse_link
+from rolola.lyrics import parse_lrc
+from rolola.matcher import norm, rank, score
+from rolola.models import Track
+from rolola.providers.spotify_links import parse_link
 
 
 def T(title, artist=None, duration=None, source="youtube", id=None):

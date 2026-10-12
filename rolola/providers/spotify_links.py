@@ -1,7 +1,7 @@
 """Spotify links (metadata only).
 
 Paste an ``open.spotify.com`` track, album or playlist link and the
-jukebox reads the song names from Spotify's public *embed* page, then plays
+rolola reads the song names from Spotify's public *embed* page, then plays
 each song from your library / YouTube / SoundCloud through the matcher
 (the Spotube approach).  No Spotify account is needed and no Spotify audio
 is used, so the queue shows "via YouTube" (or similar) on every such track.

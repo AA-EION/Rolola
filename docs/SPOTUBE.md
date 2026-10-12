@@ -19,10 +19,10 @@ reimplemented in Python.
 
 | Spotube feature | Here | File |
 |---|---|---|
-| Metadata/audio split + `SourcedTrack` matching with ranking and cached match + "siblings" | `Matcher`: searches audio sources (local library first), ranks by Spotube's rules **plus duration closeness and penalties for live/cover/karaoke variants**, caches the choice, keeps alternatives for "wrong match?" | `jukebox/matcher.py` |
-| Spotify as metadata, audio from elsewhere | **Spotify links**: paste a track/album/playlist link; names come from Spotify's public embed page; each song is matched to another source and marked as substituted | `jukebox/providers/spotify_links.py` |
-| Synced lyrics from LRCLIB | Lyrics for the current track (synced when available), cached, shown in party/TV mode | `jukebox/lyrics.py` |
-| SponsorBlock "skip non-music segments" | Skips talking intros/skits/outros in YouTube music videos (categories configurable) | `jukebox/lyrics.py` (`SponsorBlock`) |
+| Metadata/audio split + `SourcedTrack` matching with ranking and cached match + "siblings" | `Matcher`: searches audio sources (local library first), ranks by Spotube's rules **plus duration closeness and penalties for live/cover/karaoke variants**, caches the choice, keeps alternatives for "wrong match?" | `rolola/matcher.py` |
+| Spotify as metadata, audio from elsewhere | **Spotify links**: paste a track/album/playlist link; names come from Spotify's public embed page; each song is matched to another source and marked as substituted | `rolola/providers/spotify_links.py` |
+| Synced lyrics from LRCLIB | Lyrics for the current track (synced when available), cached, shown in party/TV mode | `rolola/lyrics.py` |
+| SponsorBlock "skip non-music segments" | Skips talking intros/skits/outros in YouTube music videos (categories configurable) | `rolola/lyrics.py` (`SponsorBlock`) |
 | Blacklist of tracks/artists | Already in scope (admin blocklist) | — |
 
 ## Roadmap (phase 2/3)

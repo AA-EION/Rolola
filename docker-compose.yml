@@ -1,9 +1,9 @@
-# Office Jukebox — single service. `docker compose up -d`
+# Rolola — single service. `docker compose up -d`
 services:
-  jukebox:
+  rolola:
     image: ghcr.io/aa-eion/rolola:1.0.0   # or: build: .
     build: .
-    container_name: jukebox
+    container_name: rolola
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -18,12 +18,12 @@ services:
       TZ: "America/Bogota"
       AUDIO_DEVICE: "plughw:CARD=Generic_1,DEV=0"   # by card NAME, never by index
       # ADMIN_PASSWORD: "change-me"       # else one is generated into /data/admin-password.txt
-      # BASE_PATH: "/jukebox"             # when served under a sub-path
+      # BASE_PATH: "/rolola"             # when served under a sub-path
       # TRUSTED_PROXIES: "172.16.0.0/12,192.168.1.10"
       # AUTH_HEADER: "Remote-User"        # trust SSO identity from the proxy
-      # ADMIN_GROUPS: "jukebox-admins"
+      # ADMIN_GROUPS: "rolola-admins"
       # AUTH_GROUPS_HEADER: "Remote-Groups"
-      JUKEBOX_DEFAULT_LANGUAGE: "es"
+      ROLOLA_DEFAULT_LANGUAGE: "es"
     # Optional: let mpv run with higher priority than everything else.
     # cap_add: [SYS_NICE]
     logging:

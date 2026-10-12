@@ -48,7 +48,7 @@ from your country's collecting society. Even Spotify/YouTube Premium personal pl
   server is to make it a **Spotify Connect speaker** with [librespot](https://github.com/librespot-org/librespot)
   (open-source, Rust), outputting to the same ALSA device. Requirements and limits:
   * **Spotify Premium** is mandatory (librespot refuses free accounts).
-  * People "cast" to the jukebox from their own Spotify app. That doesn't merge with our fair queue,
+  * People "cast" to Rolola from their own Spotify app. That doesn't merge with our fair queue,
     so the plan is an exclusive "Spotify mode" an admin switches on, or driving librespot through
     the Web API with one office account.
   * The **official Web API** can search and *control* playback on Spotify devices, but never deliver

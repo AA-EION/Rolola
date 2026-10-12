@@ -11,7 +11,7 @@ import httpx
 
 from .errors import ProviderError
 
-USER_AGENT = "OfficeJukebox/1.0 (+https://github.com/aa-eion/rolola)"
+USER_AGENT = "Rolola/1.0 (+https://github.com/aa-eion/rolola)"
 
 
 async def check_public_url(url: str, allow_private: bool = False) -> str:

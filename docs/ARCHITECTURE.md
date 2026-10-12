@@ -16,7 +16,7 @@
 ## Processes inside the container
 
 ```
-tini ─ python -m jukebox (uvicorn, 1 process, asyncio)
+tini ─ python -m rolola (uvicorn, 1 process, asyncio)
          ├─ mpv --idle --ao=alsa --audio-device=alsa/$AUDIO_DEVICE   (supervised, restarted with back-off)
          ├─ yt-dlp / ffmpeg subprocesses                                (nice 10, on demand)
          └─ library scanner thread                                      (thread nice 15)
@@ -29,7 +29,7 @@ Everything else runs at lower CPU priority. With `cap_add: SYS_NICE`, mpv itself
 ## Module map
 
 ```
-jukebox/
+rolola/
   app.py        HTTP/WS API, auth dependencies, static files
   player.py     playback controller (state machine around mpv)
   engine.py     mpv process supervision + JSON IPC client; ALSA diagnostics
@@ -71,7 +71,7 @@ jukebox/
 ## Identity and security
 
 * **Guests** choose a name; the server creates a user and an HttpOnly, SameSite=Lax session cookie
-  (path = public prefix). Mutating requests must carry `X-Jukebox: 1`, which a cross-site form can't
+  (path = public prefix). Mutating requests must carry `X-Rolola: 1`, which a cross-site form can't
   send without a CORS preflight, and we never allow one. WebSockets check `Origin` against `Host`.
 * **Proxy SSO**: `AUTH_HEADER` is trusted only when the TCP peer is in `TRUSTED_PROXIES`.
 * **Admin**: scrypt-hashed password, proxy users/groups, an `admin` role, or an admin API token.

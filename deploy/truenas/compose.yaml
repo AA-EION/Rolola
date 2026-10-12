@@ -1,9 +1,9 @@
-# Office Jukebox for TrueNAS SCALE 24.10+
-# Apps → Discover Apps → ⋮ (top right) → "Install via YAML" → name "jukebox" → paste → Save.
-# Data lives in the Docker named volume "jukebox_data" (no folder to create).
-name: jukebox
+# Rolola for TrueNAS SCALE 24.10+
+# Apps → Discover Apps → ⋮ (top right) → "Install via YAML" → name "rolola" → paste → Save.
+# Data lives in the Docker named volume "rolola_data" (no folder to create).
+name: rolola
 services:
-  jukebox:
+  rolola:
     image: ghcr.io/aa-eion/rolola:edge
     pull_policy: always
     restart: unless-stopped
@@ -15,12 +15,12 @@ services:
     ports:
       - "8737:8080"                                 # open http://<NAS-IP>:8737
     volumes:
-      - jukebox_data:/data
+      - rolola_data:/data
       # - /mnt/BDATA/ODATA/Musica:/music:ro         # optional: your music folder (read-only)
     environment:
       TZ: "America/Bogota"
       AUDIO_DEVICE: "plughw:CARD=Generic_1,DEV=0"   # analog output (card "Generic_1")
-      JUKEBOX_DEFAULT_LANGUAGE: "es"
+      ROLOLA_DEFAULT_LANGUAGE: "es"
       ADMIN_PASSWORD: "CambiaEstaClave2026"         # change before installing
     cap_add:
       - SYS_NICE                                    # lets the audio engine run at high priority
@@ -36,4 +36,4 @@ services:
       retries: 3
       start_period: 20s
 volumes:
-  jukebox_data:
+  rolola_data:

@@ -1,6 +1,6 @@
 """Runtime settings, editable from the admin panel and stored in SQLite.
 
-Precedence: value saved from the admin UI > ``JUKEBOX_DEFAULT_<KEY>``
+Precedence: value saved from the admin UI > ``ROLOLA_DEFAULT_<KEY>``
 environment variable > built-in default.  Secret values (provider
 credentials) are encrypted at rest with a key from ``SECRET_KEY`` or a
 generated ``secret.key`` file in the data volume.

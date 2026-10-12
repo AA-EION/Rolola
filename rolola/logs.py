@@ -64,7 +64,7 @@ def setup_logging(level: str = "INFO", as_json: bool = True) -> None:
 
 
 def get_logger(name: str) -> logging.Logger:
-    return logging.getLogger(f"jukebox.{name}")
+    return logging.getLogger(f"rolola.{name}")
 
 
 def log(logger: logging.Logger, level: int, msg: str, **ctx) -> None:

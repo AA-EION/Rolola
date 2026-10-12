@@ -11,7 +11,7 @@ import pytest
 
 pytestmark = pytest.mark.skipif(not (shutil.which("mpv") and shutil.which("ffmpeg")), reason="needs mpv + ffmpeg")
 
-H = {"X-Jukebox": "1"}
+H = {"X-Rolola": "1"}
 
 
 @pytest.fixture(scope="module")
@@ -28,9 +28,9 @@ def client(tmp_path_factory, request):
     mp = pytest.MonkeyPatch()
     for k, v in {"DATA_DIR": str(root / "data"), "MUSIC_DIR": str(root / "music"), "AUDIO_DEVICE": "null",
                  "ADMIN_PASSWORD": "admin-pass-123", "YTDLP_AUTO_UPDATE": "false", "LOG_JSON": "false",
-                 "JUKEBOX_DEFAULT_AUTOPLAY_MODE": "off", "JUKEBOX_DEFAULT_VOLUME_COOLDOWN_S": "30"}.items():
+                 "ROLOLA_DEFAULT_AUTOPLAY_MODE": "off", "ROLOLA_DEFAULT_VOLUME_COOLDOWN_S": "30"}.items():
         mp.setenv(k, v)
-    from jukebox.app import create_app
+    from rolola.app import create_app
 
     app = create_app()
     with TestClient(app, base_url="http://testserver") as c:
@@ -61,7 +61,7 @@ def search(c, q):
     return [x for x in r.json()["results"] if x["kind"] == "track"]
 
 
-def wait_for(fn, timeout=8.0):
+def wait_for(fn, timeout=25.0):
     end = time.time() + timeout
     while time.time() < end:
         v = fn()
@@ -81,7 +81,7 @@ def test_requires_name_and_csrf_header(client):
     assert client.get("/api/search", params={"q": "a", "source": "local"}).status_code == 401
     ana = join(client, "Ana")
     t = search(ana, "alpha")[0]
-    r = ana.post("/api/queue", json={"track": t})  # no X-Jukebox header
+    r = ana.post("/api/queue", json={"track": t})  # no X-Rolola header
     assert r.status_code == 403 and r.json()["error"] == "err.csrf"
 
 

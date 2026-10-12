@@ -1,28 +1,28 @@
-# Office Jukebox behind Traefik v3 (docker labels). Two variants:
+# Rolola behind Traefik v3 (docker labels). Two variants:
 #  A) own host:   https://music.example.com/
-#  B) sub-path:   https://apps.example.com/jukebox/  (prefix kept, app strips it via BASE_PATH)
+#  B) sub-path:   https://apps.example.com/rolola/  (prefix kept, app strips it via BASE_PATH)
 # WebSockets work out of the box in Traefik; nothing extra is needed.
 services:
-  jukebox:
+  rolola:
     image: ghcr.io/aa-eion/rolola:1.0.0
     environment:
       TRUSTED_PROXIES: "172.16.0.0/12"     # Traefik's docker network
-      BASE_PATH: "/jukebox"                # only for variant B (harmless for A)
+      BASE_PATH: "/rolola"                # only for variant B (harmless for A)
       # AUTH_HEADER: "Remote-User"         # with the forward-auth middleware below
       # AUTH_GROUPS_HEADER: "Remote-Groups"
       # ADMIN_GROUPS: "admins"
     labels:
       - traefik.enable=true
-      - traefik.http.services.jukebox.loadbalancer.server.port=8080
+      - traefik.http.services.rolola.loadbalancer.server.port=8080
       # A) dedicated host
-      - traefik.http.routers.jukebox.rule=Host(`music.example.com`)
-      - traefik.http.routers.jukebox.entrypoints=websecure
-      - traefik.http.routers.jukebox.tls.certresolver=le
+      - traefik.http.routers.rolola.rule=Host(`music.example.com`)
+      - traefik.http.routers.rolola.entrypoints=websecure
+      - traefik.http.routers.rolola.tls.certresolver=le
       # B) sub-path (no StripPrefix: the app handles BASE_PATH itself)
-      - traefik.http.routers.jukebox-sub.rule=Host(`apps.example.com`) && PathPrefix(`/jukebox`)
-      - traefik.http.routers.jukebox-sub.entrypoints=websecure
-      - traefik.http.routers.jukebox-sub.tls.certresolver=le
+      - traefik.http.routers.rolola-sub.rule=Host(`apps.example.com`) && PathPrefix(`/rolola`)
+      - traefik.http.routers.rolola-sub.entrypoints=websecure
+      - traefik.http.routers.rolola-sub.tls.certresolver=le
       # Optional SSO via Authelia forward-auth (it sets Remote-User / Remote-Groups):
-      # - traefik.http.routers.jukebox.middlewares=authelia@docker
+      # - traefik.http.routers.rolola.middlewares=authelia@docker
       # - traefik.http.middlewares.authelia.forwardauth.address=http://authelia:9091/api/authz/forward-auth
       # - traefik.http.middlewares.authelia.forwardauth.authResponseHeaders=Remote-User,Remote-Groups,Remote-Name

@@ -1,4 +1,4 @@
-// Office Jukebox web client. No build step: plain ES modules.
+// Rolola web client. No build step: plain ES modules.
 import { t, setLang, getLang, DICT } from './i18n.js';
 
 // ------------------------------------------------------------------ state
@@ -119,7 +119,7 @@ async function api(method, path, body) {
   try {
     res = await fetch(path, {
       method, credentials: 'same-origin',
-      headers: { 'X-Jukebox': '1', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+      headers: { 'X-Rolola': '1', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch { throw new ApiErr(t('err.network')); }
@@ -837,7 +837,7 @@ async function adminLogs(body) {
   const pre = h('pre', { class: 'logs' });
   const load = async () => {
     const rows = await act(() => api('GET', 'api/admin/logs?limit=300&level=' + level.value)); if (!rows) return;
-    pre.textContent = rows.map((r) => { const { ts, level: lv, logger, msg, ...rest } = r; return `${new Date(ts * 1000).toLocaleTimeString()} ${lv.padEnd(7)} ${logger.replace('jukebox.', '')}: ${msg}${Object.keys(rest).length ? ' ' + JSON.stringify(rest) : ''}`; }).reverse().join('\n');
+    pre.textContent = rows.map((r) => { const { ts, level: lv, logger, msg, ...rest } = r; return `${new Date(ts * 1000).toLocaleTimeString()} ${lv.padEnd(7)} ${logger.replace('rolola.', '')}: ${msg}${Object.keys(rest).length ? ' ' + JSON.stringify(rest) : ''}`; }).reverse().join('\n');
   };
   setKids(body, h('div', { class: 'row', style: { marginBottom: '8px' } }, level, h('button', { class: 'icon-btn small', 'aria-label': 'Refresh', onclick: load }, icon('refresh'))), pre);
   load();

@@ -7,13 +7,13 @@ from pathlib import Path
 import pytest
 from starlette.datastructures import Headers
 
-from jukebox.auth import Auth, clean_name
-from jukebox.config import load_config
-from jukebox.db import Database
-from jukebox.models import Track
-from jukebox.proxy import ProxyMiddleware
-from jukebox.rules import Blocklist, schedule_allows
-from jukebox.settings import Secrets, Settings
+from rolola.auth import Auth, clean_name
+from rolola.config import load_config
+from rolola.db import Database
+from rolola.models import Track
+from rolola.proxy import ProxyMiddleware
+from rolola.rules import Blocklist, schedule_allows
+from rolola.settings import Secrets, Settings
 
 OFFICE = [{"days": [0, 1, 2, 3, 4], "start": "09:00", "end": "18:00"}]
 NIGHT = [{"days": [4], "start": "22:00", "end": "02:00"}]  # Friday night party
@@ -95,12 +95,12 @@ def test_forwarded_headers_only_from_trusted_proxy(monkeypatch):
 
 
 def test_base_path_is_stripped_and_root_still_works(monkeypatch):
-    cfg = make_config(monkeypatch, BASE_PATH="/jukebox")
-    seen, _ = run_mw(cfg, path="/jukebox/api/state")
-    assert seen["path"] == "/api/state" and seen["state"]["public_prefix"] == "/jukebox"
+    cfg = make_config(monkeypatch, BASE_PATH="/rolola")
+    seen, _ = run_mw(cfg, path="/rolola/api/state")
+    assert seen["path"] == "/api/state" and seen["state"]["public_prefix"] == "/rolola"
     seen, _ = run_mw(cfg, path="/api/state")
     assert seen["path"] == "/api/state"
-    seen, sent = run_mw(cfg, path="/jukebox")
+    seen, sent = run_mw(cfg, path="/rolola")
     assert not seen and sent[0]["status"] == 308
 
 
@@ -129,11 +129,11 @@ def test_admin_password_and_sessions(monkeypatch, tmp_path):
     assert (tmp_path / "admin-password.txt").stat().st_mode & 0o077 == 0
     assert auth.check_password(generated) and not auth.check_password("nope")
     ident, token = auth.create_guest("Ana")
-    again = auth.resolve({}, {"jukebox_session": token}, {})
+    again = auth.resolve({}, {"rolola_session": token}, {})
     assert again.user_id == ident.user_id and not again.is_admin
     auth.elevate(again)
-    assert auth.resolve({}, {"jukebox_session": token}, {}).is_admin
-    assert auth.resolve({}, {"jukebox_session": "forged"}, {}) is None
+    assert auth.resolve({}, {"rolola_session": token}, {}).is_admin
+    assert auth.resolve({}, {"rolola_session": "forged"}, {}) is None
 
 
 def test_provider_secrets_are_encrypted_at_rest(tmp_path):

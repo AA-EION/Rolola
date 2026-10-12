@@ -1,4 +1,4 @@
-"""Keeps the jukebox maintenance-free: forgets idle devices and people,
+"""Keeps Rolola maintenance-free: forgets idle devices and people,
 ages out history and caches, and keeps the database file small."""
 
 from __future__ import annotations

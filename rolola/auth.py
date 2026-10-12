@@ -29,7 +29,8 @@ from .logs import get_logger, register_secret
 from .settings import Settings
 
 log = get_logger("auth")
-COOKIE = "jukebox_session"
+COOKIE = "rolola_session"
+LEGACY_COOKIE = "jukebox_session"  # before the rename to Rolola; still accepted
 NAME_RE = re.compile(r"^[\w .'@\-]{1,32}$", re.UNICODE)
 
 
@@ -235,7 +236,7 @@ class Auth:
                 )
             return None
 
-        token = cookies.get(COOKIE)
+        token = cookies.get(COOKIE) or cookies.get(LEGACY_COOKIE)
         if token:
             th = hash_token(token)
             row = self.db.one(

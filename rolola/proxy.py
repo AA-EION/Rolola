@@ -1,6 +1,6 @@
 """ASGI middleware for running behind a reverse proxy.
 
-* Strips ``BASE_PATH`` (when the proxy forwards ``/jukebox/...`` unchanged)
+* Strips ``BASE_PATH`` (when the proxy forwards ``/rolola/...`` unchanged)
   while also serving the root path (when the proxy strips the prefix).
 * Honors ``X-Forwarded-For/Proto/Host/Prefix`` only from ``TRUSTED_PROXIES``.
 * Records the *direct* peer address so identity headers are only trusted
@@ -60,7 +60,7 @@ class ProxyMiddleware:
         path: str = scope.get("path", "")
         base = self.config.base_path
         if base and path == base and scope["type"] == "http":
-            # "/jukebox" -> "/jukebox/" so relative URLs in the UI resolve correctly
+            # "/rolola" -> "/rolola/" so relative URLs in the UI resolve correctly
             await send({"type": "http.response.start", "status": 308,
                         "headers": [(b"location", (base + "/").encode()), (b"content-length", b"0")]})
             await send({"type": "http.response.body", "body": b""})

@@ -1,4 +1,4 @@
-# Office Jukebox
+# Rolola
 
 One shared music system for the office. Everyone opens a web page on their phone or PC, searches,
 taps a song, and it plays through the speakers attached to one server (a TrueNAS SCALE box with an
@@ -55,7 +55,7 @@ What the app needs:
 | Device | `/dev/snd:/dev/snd` |
 | Supplementary group | the host `audio` GID (usually `29`) |
 | User | `568:568` (TrueNAS `apps` user; the image default) |
-| Volume (read-write) | a dataset, e.g. `/mnt/tank/apps/jukebox` → `/data`, owned by 568 |
+| Volume (read-write) | a dataset, e.g. `/mnt/tank/apps/rolola` → `/data`, owned by 568 |
 | Volume (read-only) | your music, e.g. `/mnt/tank/media/music` → `/music` |
 | Port | `8080` (no host networking needed) |
 | Env | `AUDIO_DEVICE=plughw:CARD=Generic_1,DEV=0`, `TZ`, optional `ADMIN_PASSWORD` |
@@ -66,8 +66,8 @@ Two layers:
 
 1. **Environment variables**: deployment settings (paths, proxy trust, device). Table below.
 2. **Admin panel**: everything about behaviour (fairness, limits, voting, volume caps, autoplay,
-   schedule, sources and their credentials). Stored in `/data/jukebox.db`.
-   Any admin setting can be pre-seeded with `JUKEBOX_DEFAULT_<SETTING>`, e.g. `JUKEBOX_DEFAULT_LANGUAGE=es`.
+   schedule, sources and their credentials). Stored in `/data/rolola.db`.
+   Any admin setting can be pre-seeded with `ROLOLA_DEFAULT_<SETTING>`, e.g. `ROLOLA_DEFAULT_LANGUAGE=es`.
    A value saved in the admin panel wins over the environment default.
 
 ### Environment variables
@@ -81,7 +81,7 @@ Two layers:
 | `TZ` | `UTC` | Time zone for quiet hours and history. |
 | `ADMIN_PASSWORD` | *(generated)* | Admin password. If unset, a random one is written to `/data/admin-password.txt` (mode 600). |
 | `SECRET_KEY` | *(generated)* | Key that encrypts stored provider credentials. If unset, `/data/secret.key` is generated. |
-| `BASE_PATH` | *(empty)* | Serve under a sub-path such as `/jukebox` when the proxy does **not** strip the prefix. Root keeps working too. |
+| `BASE_PATH` | *(empty)* | Serve under a sub-path such as `/rolola` when the proxy does **not** strip the prefix. Root keeps working too. |
 | `TRUSTED_PROXIES` | *(none)* | Comma-separated IPs/CIDRs of your reverse proxy. Only these may set `X-Forwarded-*` and identity headers. |
 | `AUTH_HEADER` | *(empty)* | Trust this header as the user identity (e.g. `Remote-User`, `X-Forwarded-User`). Requires `TRUSTED_PROXIES`. |
 | `AUTH_NAME_HEADER` | *(empty)* | Optional display-name header (e.g. `Remote-Name`). |
@@ -97,7 +97,7 @@ Two layers:
 | `MPV_EXTRA_ARGS` | *(empty)* | Extra mpv flags, e.g. `--audio-samplerate=48000`. |
 | `DISABLE_AUDIO` | `false` | Force mpv's null output (CI/demo). |
 
-### Admin settings (also `JUKEBOX_DEFAULT_*`)
+### Admin settings (also `ROLOLA_DEFAULT_*`)
 
 | Setting | Default | |
 |---|---|---|
@@ -175,7 +175,7 @@ YouTube sometimes asks servers to prove they aren't bots. In order:
 The app speaks plain HTTP and is built to sit behind a proxy:
 
 * **Sub-path**: all UI and API URLs are relative. Either strip the prefix in the proxy (nginx
-  example) or keep it and set `BASE_PATH=/jukebox` (Traefik example). `/jukebox` redirects to `/jukebox/`.
+  example) or keep it and set `BASE_PATH=/rolola` (Traefik example). `/rolola` redirects to `/rolola/`.
 * **WebSockets**: live updates use `GET /api/ws`, so forward `Upgrade`/`Connection` headers.
 * **X-Forwarded-For/Proto/Host/Prefix** are honoured only from `TRUSTED_PROXIES`.
 * **SSO**: set `AUTH_HEADER=Remote-User` (and optionally `AUTH_GROUPS_HEADER`, `ADMIN_GROUPS`).
@@ -193,7 +193,7 @@ Everything lives in the `/data` volume:
 
 | Path | What | Back up? |
 |---|---|---|
-| `jukebox.db` (+ `-wal`, `-shm`) | queue, history, users, playlists, favourites, settings | **yes** |
+| `rolola.db` (+ `-wal`, `-shm`) | queue, history, users, playlists, favourites, settings | **yes** |
 | `secret.key` | key for encrypted credentials (unless you use `SECRET_KEY`) | **yes, keep with the DB** |
 | `admin-password.txt` | generated admin password (deleted when you change it) | optional |
 | `cache/` | downloaded audio, rebuildable | no |
@@ -202,12 +202,12 @@ Everything lives in the `/data` volume:
 Consistent online backup (SQLite's own backup API, safe while running):
 
 ```bash
-docker exec jukebox python3 -c "import sqlite3; s=sqlite3.connect('/data/jukebox.db'); d=sqlite3.connect('/data/backup.db'); s.backup(d); d.close()"
-cp /mnt/tank/apps/jukebox/{backup.db,secret.key} /somewhere/safe/
+docker exec rolola python3 -c "import sqlite3; s=sqlite3.connect('/data/rolola.db'); d=sqlite3.connect('/data/backup.db'); s.backup(d); d.close()"
+cp /mnt/tank/apps/rolola/{backup.db,secret.key} /somewhere/safe/
 ```
 
 On TrueNAS, a periodic **ZFS snapshot** of the dataset is the simplest option (WAL mode makes snapshots crash-consistent).
-**Restore**: stop the app, put `backup.db` back as `jukebox.db` (delete stale `-wal`/`-shm`), restore `secret.key`, start.
+**Restore**: stop the app, put `backup.db` back as `rolola.db` (delete stale `-wal`/`-shm`), restore `secret.key`, start.
 Image updates never touch `/data`; the database schema migrates itself forward.
 
 ## Audio troubleshooting
@@ -220,15 +220,15 @@ whether `/dev/snd` is writable, mpv's last errors, and a suggested device string
 | Banner "Sound card unavailable … Retrying" | mpv can't open the device. The queue is kept and retried every 10 s, so fix the device and it resumes. |
 | `/dev/snd: missing` | Add `devices: - /dev/snd:/dev/snd`. |
 | `/dev/snd: present, NOT writable` | The container user isn't in the host's `audio` group: `group_add: ["<GID of audio>"]` (`getent group audio` on the host, usually 29). |
-| `Cannot get card index for X` | Wrong card name. Run `docker exec jukebox aplay -l` and use `plughw:CARD=<id>,DEV=<n>`, where `<id>` is the word in brackets/after "card N:". |
+| `Cannot get card index for X` | Wrong card name. Run `docker exec rolola aplay -l` and use `plughw:CARD=<id>,DEV=<n>`, where `<id>` is the word in brackets/after "card N:". |
 | Works until reboot, then silent | You used `hw:1,0`; card numbers change. Always use `CARD=<name>`. |
 | "Device or resource busy" | Something else holds the card (another container or host service). ALSA `hw`/`plughw` devices are exclusive. |
 | Sound is distorted or the sample rate is rejected | Use `plughw:` (converts formats), not `hw:`. |
-| Very quiet | Unmute or raise the hardware mixer once: `docker exec -it jukebox alsamixer -c Generic_1` (or `amixer -c Generic_1 sset Master 90% unmute`). |
+| Very quiet | Unmute or raise the hardware mixer once: `docker exec -it rolola alsamixer -c Generic_1` (or `amixer -c Generic_1 sset Master 90% unmute`). |
 | Crackles under load | Give mpv priority: add `cap_add: [SYS_NICE]` (mpv then runs at nice −10). Everything else already runs at low priority. |
 
-List devices from inside the container: `docker exec jukebox aplay -L | grep -A1 plughw`
-or `docker exec jukebox mpv --audio-device=help`.
+List devices from inside the container: `docker exec rolola aplay -L | grep -A1 plughw`
+or `docker exec rolola mpv --audio-device=help`.
 
 ## API
 
@@ -236,11 +236,11 @@ Interactive docs at `/api/docs` (OpenAPI at `/api/openapi.json`). Create a token
 
 ```bash
 T="Authorization: Bearer jbx_…"
-curl -H "$T" "http://jukebox:8080/api/state"                                  # now playing, queue, votes
-curl -H "$T" "http://jukebox:8080/api/search?source=youtube&q=daft+punk"
-curl -H "$T" -H 'Content-Type: application/json' -X POST http://jukebox:8080/api/queue \
+curl -H "$T" "http://rolola:8080/api/state"                                  # now playing, queue, votes
+curl -H "$T" "http://rolola:8080/api/search?source=youtube&q=daft+punk"
+curl -H "$T" -H 'Content-Type: application/json' -X POST http://rolola:8080/api/queue \
      -d '{"track":{"source":"youtube","id":"K0HSD_i2DvA","title":"Around the World"}}'
-curl -H "$T" -X POST http://jukebox:8080/api/player/skip                         # vote (admin token: force)
+curl -H "$T" -X POST http://rolola:8080/api/player/skip                         # vote (admin token: force)
 ```
 
 Useful for chat bots ("/play …" in Slack), schedules ("pause at 12:30 for the all-hands") or a smart button.
@@ -251,13 +251,38 @@ Health: `GET /healthz` (liveness, includes engine/audio status) and `GET /readyz
 ```bash
 sudo apt install mpv ffmpeg            # the engine and loudness analysis
 python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements-dev.txt
-DATA_DIR=./data MUSIC_DIR=~/Music AUDIO_DEVICE=null LOG_JSON=false python -m jukebox
+DATA_DIR=./data MUSIC_DIR=~/Music AUDIO_DEVICE=null LOG_JSON=false python -m rolola
 pytest                                 # unit + end-to-end tests (e2e needs mpv & ffmpeg)
 ```
 
-No frontend build step: `jukebox/web/` is plain HTML/CSS/ES modules. Add a UI language by copying
-the `en` block in `jukebox/web/i18n.js`. Add a music source by subclassing `Provider`
+No frontend build step: `rolola/web/` is plain HTML/CSS/ES modules. Add a UI language by copying
+the `en` block in `rolola/web/i18n.js`. Add a music source by subclassing `Provider`
 (see [architecture](docs/ARCHITECTURE.md#the-provider-plugin-interface)).
+
+## License
+
+Rolola is **free and source-available** under the [PolyForm Noncommercial License 1.0.0](LICENSE):
+anyone may use, study, modify and share it at no cost for any **noncommercial** purpose
+(personal use, hobby projects, research, schools, charities, public institutions...).
+**Commercial use is not permitted.** Copies and modified versions must keep the license and its
+`Required Notice` line.
+
+**Why noncommercial:** several of Rolola's music sources (YouTube, SoundCloud, Bandcamp, Spotify
+links) work in ways those services' terms of service don't allow. Offering or selling Rolola
+commercially would turn those violations into a business. So the license only allows noncommercial
+use, and the software comes **as is, without warranty or liability** (see the license text).
+
+Because it forbids commercial use, Rolola is "source-available" rather than OSI-approved "open
+source". The copyright holders themselves are not bound by these terms.
+
+**Third-party components** keep their own licenses, listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Most are permissive (MIT/BSD/Apache/Unlicense). mpv, FFmpeg and ALSA utilities are GPL programs run as
+separate processes. One library, **mutagen** (tag reading for local music files), is
+**GPL-2.0-or-later** and runs inside Rolola's process. The PolyForm license covers only Rolola's own
+code: it does not relicense mutagen, which stays GPL. Strictly, the GPL does not allow its code to be
+distributed together with extra restrictions such as "no commercial use", and some readers (including
+the FSF) consider a Python program that imports a library to be one combined work. If you distribute
+Rolola, distribute mutagen under the GPL with its source available (it is unmodified, from PyPI).
 
 ## Legal
 

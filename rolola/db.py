@@ -192,7 +192,7 @@ class Database:
 
     def executemany(self, sql: str, rows: Iterable[Iterable[Any]]) -> None:
         with self._lock:
-            self.conn.execute("BEGIN")
+            self.conn.execute("BEGIN IMMEDIATE")  # take the write lock now: waits (busy_timeout) instead of failing
             try:
                 self.conn.executemany(sql, rows)
                 self.conn.execute("COMMIT")

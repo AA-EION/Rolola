@@ -1,4 +1,4 @@
-"""Entry point: ``python -m jukebox``."""
+"""Entry point: ``python -m rolola``."""
 
 import uvicorn
 

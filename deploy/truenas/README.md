@@ -22,32 +22,32 @@ Optional quick check from the host: `speaker-test -D plughw:CARD=Generic_1,DEV=0
 
 ## 2. Create the datasets
 
-* `tank/apps/jukebox`: app data. **Datasets → Add Dataset** (preset *Apps*), then **Edit Permissions**:
-  owner user `apps` (568), group `apps` (568). Or in the shell: `chown 568:568 /mnt/tank/apps/jukebox`.
+* `tank/apps/rolola`: app data. **Datasets → Add Dataset** (preset *Apps*), then **Edit Permissions**:
+  owner user `apps` (568), group `apps` (568). Or in the shell: `chown 568:568 /mnt/tank/apps/rolola`.
 * Your music dataset (for example `tank/media/music`) only needs to be **readable** by user 568.
 
 ## 3. Install
 
-**Apps → Discover Apps → ⋮ (top right) → Install via YAML**. Name it `jukebox`, paste
+**Apps → Discover Apps → ⋮ (top right) → Install via YAML**. Name it `rolola`, paste
 [`compose.yaml`](compose.yaml), edit the `# <-- EDIT` lines and save. TrueNAS pulls the image and starts it.
 
 Open `http://<truenas-ip>:8080`. If you didn't set `ADMIN_PASSWORD`, read the generated one:
 
 ```bash
-cat /mnt/tank/apps/jukebox/admin-password.txt
+cat /mnt/tank/apps/rolola/admin-password.txt
 ```
 
 Then *avatar → Admin login → Admin → Play test tone*.
 
 ## 4. Update
 
-**Apps → jukebox → Edit**, change the image tag (e.g. `1.0.0` → `1.1.0`), save. Queue, history,
+**Apps → rolola → Edit**, change the image tag (e.g. `1.0.0` → `1.1.0`), save. Queue, history,
 settings and logins are in `/data` and survive. yt-dlp also updates itself daily inside `/data/ytdlp`,
 so YouTube fixes don't wait for a new image.
 
 ## Notes
 
-* No host networking needed: the jukebox only needs one TCP port.
+* No host networking needed: Rolola only needs one TCP port.
 * If port 8080 is taken, change the left side: `"8090:8080"`.
-* ZFS snapshots of `tank/apps/jukebox` are a complete backup (see the main README).
+* ZFS snapshots of `tank/apps/rolola` are a complete backup (see the main README).
 * Diagnostics: *Admin → Audio & diagnostics* shows what the container sees (`/dev/snd`, groups, cards).

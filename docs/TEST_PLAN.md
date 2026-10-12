@@ -5,7 +5,7 @@
 | File | Covers |
 |---|---|
 | `tests/test_queue_votes.py` | FIFO vs fair round-robin ordering; least-recently-served first; pins; per-user limit (truncate, refuse, admin exempt, 0 = unlimited); remove/reorder permissions (own vs admin); admin pin with fairness on; global moves with fairness off; vote thresholds (percent/count, rounding, caps, never 0); vote dedup and reset. |
-| `tests/test_rules_proxy.py` | Quiet-hours windows (exclusive end, weekends, crossing midnight); blocklist by artist/keyword/track and on substituted tracks; name validation; `X-Forwarded-*` only from trusted proxies; `BASE_PATH` stripping, root still served, `/jukebox` → 308; identity header ignored from untrusted peers; proxy groups → admin; generated admin password (file mode 600); sessions, elevation, forged cookies; provider secrets encrypted at rest. |
+| `tests/test_rules_proxy.py` | Quiet-hours windows (exclusive end, weekends, crossing midnight); blocklist by artist/keyword/track and on substituted tracks; name validation; `X-Forwarded-*` only from trusted proxies; `BASE_PATH` stripping, root still served, `/rolola` → 308; identity header ignored from untrusted peers; proxy groups → admin; generated admin password (file mode 600); sessions, elevation, forged cookies; provider secrets encrypted at rest. |
 | `tests/test_spotube_ideas.py` | Match ranking (official audio + right duration beats live/karaoke/wrong length; Topic/local bonus; unrelated songs below threshold; requested variants not penalised); title normalisation; LRC parsing; Spotify link parsing. |
 | `tests/test_api.py` | End to end with **real mpv** (null output) and a generated library: health, static, OpenAPI; name required; CSRF header required; fair order across users via the API; **vote-skip with 3 live WebSocket listeners** (1 vote → not yet, 2 → skip); owner instant skip; history outcomes (`voted`, `skipped`); can't remove others' tracks; volume clamp to max + cooldown; admin login (wrong/right), settings change, diagnostics; secrets returned masked; blocklist prevents adding; duplicates refused. |
 
@@ -24,7 +24,7 @@ Verified in development: ✅ = done in the container/proxy test run, ☐ = needs
 - ☐ Two consecutive album tracks (live album): no gap at the transition.
 - ☐ Set `max_volume` to 50: the slider caps at 50 and the speakers are quieter.
 - ☐ Unplug a USB sound card (or set a wrong device): red banner, the queue doesn't advance; fix it → resumes within ~10 s.
-- ☐ `docker restart jukebox` mid-song: comes back on the same song near the same position. (✅ verified with null output)
+- ☐ `docker restart rolola` mid-song: comes back on the same song near the same position. (✅ verified with null output)
 - ☐ Under load (library rescan + 3 YouTube downloads + 40 browser tabs): no audible glitches.
 
 ### Sources
@@ -40,8 +40,8 @@ Verified in development: ✅ = done in the container/proxy test run, ☐ = needs
 - ☐ Unplug the internet: local library still searches and plays; remote sources show "Offline"; the UI explains the errors.
 
 ### Reverse proxy
-- ✅ nginx sub-path `/jukebox/` with prefix stripping: UI loads, WebSocket connects, cookie path `/jukebox/`.
-- ✅ `BASE_PATH=/jukebox` without stripping (Traefik style): UI, API and WebSocket work; `/jukebox` → `/jukebox/`.
+- ✅ nginx sub-path `/rolola/` with prefix stripping: UI loads, WebSocket connects, cookie path `/rolola/`.
+- ✅ `BASE_PATH=/rolola` without stripping (Traefik style): UI, API and WebSocket work; `/rolola` → `/rolola/`.
 - ✅ SSO header from the trusted proxy → logged in without a name prompt; group → admin.
 - ✅ The same header sent by a client (proxy clears it) → ignored.
 - ✅ Cross-origin WebSocket → rejected.

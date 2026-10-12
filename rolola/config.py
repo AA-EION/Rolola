@@ -3,7 +3,7 @@
 Everything here is *deployment* configuration (paths, ports, proxy trust).
 Runtime behaviour (fairness, volume limits, sources...) lives in
 ``settings.py`` and can be edited from the admin panel; environment variables
-with the ``JUKEBOX_DEFAULT_`` prefix only seed those runtime settings.
+with the ``ROLOLA_DEFAULT_`` prefix only seed those runtime settings.
 """
 
 from __future__ import annotations
@@ -74,7 +74,7 @@ class Config:
 
     @property
     def db_path(self) -> Path:
-        return self.data_dir / "jukebox.db"
+        return self.data_dir / "rolola.db"
 
     @property
     def cache_dir(self) -> Path:
@@ -102,11 +102,9 @@ def load_config() -> Config:
         except ValueError:
             pass
 
-    defaults = {
-        k[len("JUKEBOX_DEFAULT_"):].lower(): v
-        for k, v in os.environ.items()
-        if k.startswith("JUKEBOX_DEFAULT_")
-    }
+    defaults: dict[str, str] = {}
+    for prefix in ("JUKEBOX_DEFAULT_", "ROLOLA_DEFAULT_"):  # old prefix still works; the new one wins
+        defaults.update({k[len(prefix):].lower(): v for k, v in os.environ.items() if k.startswith(prefix)})
 
     return Config(
         data_dir=Path(_env("DATA_DIR", "/data")),

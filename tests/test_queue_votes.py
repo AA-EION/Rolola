@@ -2,10 +2,10 @@
 
 import pytest
 
-from jukebox.db import Database
-from jukebox.models import Track
-from jukebox.queue import QueueError, QueueItem, QueueManager, order_items
-from jukebox.votes import VoteBox, required_votes
+from rolola.db import Database
+from rolola.models import Track
+from rolola.queue import QueueError, QueueItem, QueueManager, order_items
+from rolola.votes import VoteBox, required_votes
 
 
 def item(i, user, pos=None, pinned=False, added=None):

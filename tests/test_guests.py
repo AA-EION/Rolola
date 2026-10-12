@@ -4,11 +4,11 @@ import time
 
 import pytest
 
-from jukebox.auth import Auth, merge_duplicate_guests
-from jukebox.config import load_config
-from jukebox.db import Database
-from jukebox.housekeeping import cleanup
-from jukebox.settings import Secrets, Settings
+from rolola.auth import Auth, merge_duplicate_guests
+from rolola.config import load_config
+from rolola.db import Database
+from rolola.housekeeping import cleanup
+from rolola.settings import Secrets, Settings
 
 DAY = 86400
 

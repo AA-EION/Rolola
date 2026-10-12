@@ -1,6 +1,6 @@
 {
-  "name": "Office Jukebox",
-  "short_name": "Jukebox",
+  "name": "Rolola",
+  "short_name": "Rolola",
   "description": "Search, queue and vote on the office music.",
   "start_url": "./",
   "scope": "./",

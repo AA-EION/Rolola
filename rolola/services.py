@@ -25,6 +25,12 @@ class Services:
         config.data_dir.mkdir(parents=True, exist_ok=True)
         config.cache_dir.mkdir(parents=True, exist_ok=True)
         config.run_dir.mkdir(parents=True, exist_ok=True)
+        legacy = config.data_dir / "jukebox.db"  # installs from before the rename to Rolola
+        if legacy.exists() and not config.db_path.exists():
+            for suffix in ("", "-wal", "-shm"):
+                old = config.data_dir / f"jukebox.db{suffix}"
+                if old.exists():
+                    old.rename(config.data_dir / f"{config.db_path.name}{suffix}")
         self.db = Database(config.db_path)
         self.settings = Settings(self.db, config.defaults, Secrets(config.data_dir, config.secret_key))
         self.auth = Auth(config, self.db, self.settings)

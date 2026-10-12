@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import __version__
-from .auth import COOKIE, Identity
+from .auth import COOKIE, LEGACY_COOKIE, Identity
 from .config import Config, load_config
 from .db import dumps, loads
 from .engine import alsa_cards, snd_access
@@ -143,16 +143,16 @@ def create_app(config: Config | None = None) -> FastAPI:
 
     @contextlib.asynccontextmanager
     async def lifespan(_app: FastAPI):
+        cleanup(svc.db, config.guest_expire_days, config.history_days, vacuum=True)  # before the library scan starts
         for p in svc.providers.values():
             if p.enabled:
                 try:
                     await p.start()
                 except Exception as exc:
                     p.fail(exc)
-        cleanup(svc.db, config.guest_expire_days, config.history_days, vacuum=True)
         await player.start()
         background.append(asyncio.create_task(_periodic()))
-        log.info("jukebox started", extra={"ctx": {"version": __version__, "port": config.port,
+        log.info("rolola started", extra={"ctx": {"version": __version__, "port": config.port,
                                                    "base_path": config.base_path or "/"}})
         yield
         for t in background:
@@ -188,7 +188,7 @@ def create_app(config: Config | None = None) -> FastAPI:
             except Exception:
                 log.exception("periodic task failed")
 
-    app = FastAPI(title="Office Jukebox API", version=__version__, lifespan=lifespan,
+    app = FastAPI(title="Rolola API", version=__version__, lifespan=lifespan,
                   docs_url=None, redoc_url=None, openapi_url="/api/openapi.json")
     app.state.svc = svc
 
@@ -220,7 +220,7 @@ def create_app(config: Config | None = None) -> FastAPI:
         # Cookie sessions must send a custom header: browsers can't add it cross-site
         # without a CORS preflight, which we never allow.
         if request.method in ("POST", "PUT", "PATCH", "DELETE") and ident and ident.session_hash:
-            if request.headers.get("x-jukebox") != "1":
+            if "1" not in (request.headers.get("x-rolola"), request.headers.get("x-jukebox")):
                 raise ApiError("err.csrf", 403)
 
     def rate(scope: str, rate_n: float, per: float):
@@ -273,10 +273,12 @@ def create_app(config: Config | None = None) -> FastAPI:
         resp = JSONResponse({"user": ident.public() if ident else None,
                              "proxy_auth": bool(config.auth_header),
                              "admin_password_from_env": svc.auth.password_from_env})
-        token = request.cookies.get(COOKIE)
+        token = request.cookies.get(COOKIE) or request.cookies.get(LEGACY_COOKIE)
         if ident and ident.session_hash and token:  # sliding expiry: every visit renews it
             resp.set_cookie(COOKIE, token, max_age=config.guest_expire_days * 86400, httponly=True,
                             samesite="lax", path=cookie_path(request), secure=secure_cookie(request))
+            if request.cookies.get(LEGACY_COOKIE):
+                resp.delete_cookie(LEGACY_COOKIE, path=cookie_path(request))
         return resp
 
     @app.post("/api/session/join", tags=["session"], dependencies=[rate("join", 5, 60)])
@@ -934,7 +936,7 @@ def create_app(config: Config | None = None) -> FastAPI:
     # ------------------------------------------------------------ docs & static
     @app.get("/api/docs", include_in_schema=False)
     async def docs():
-        return get_swagger_ui_html(openapi_url="openapi.json", title="Office Jukebox API")
+        return get_swagger_ui_html(openapi_url="openapi.json", title="Rolola API")
 
     @app.get("/display", include_in_schema=False)
     async def display_redirect():

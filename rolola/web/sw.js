@@ -1,6 +1,6 @@
 // Minimal service worker: makes the app installable and keeps the shell
 // available on flaky Wi-Fi. API calls always go to the network.
-const CACHE = 'jukebox-v1';
+const CACHE = 'rolola-v1';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'i18n.js', 'manifest.webmanifest', 'icons/icon.svg'];
 
 self.addEventListener('install', (e) => {
