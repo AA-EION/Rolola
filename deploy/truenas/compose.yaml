@@ -13,7 +13,7 @@ services:
     devices:
       - /dev/snd:/dev/snd
     ports:
-      - "8080:8080"
+      - "8737:8080"                               # NAS port 8737 → app port 8080
     volumes:
       - /mnt/tank/apps/jukebox:/data                # app data (must be owned by 568:568)
       - /mnt/tank/media/music:/music:ro             # your music library, read-only
