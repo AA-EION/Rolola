@@ -1,11 +1,11 @@
 # Office Jukebox for TrueNAS SCALE 24.10+
-# Apps → Discover Apps → ⋮ (top right) → "Install via YAML" → paste this.
-# Only the two volume paths depend on your pool name (replace "tank" if yours differs: `zpool list`).
+# Apps → Discover Apps → ⋮ (top right) → "Install via YAML" → name "jukebox" → paste → Save.
+# Data lives in the Docker named volume "jukebox_data" (no folder to create).
+name: jukebox
 services:
   jukebox:
     image: ghcr.io/aa-eion/rolola:edge
     pull_policy: always
-    container_name: jukebox
     restart: unless-stopped
     user: "568:568"                                 # TrueNAS "apps" user
     group_add:
@@ -13,10 +13,10 @@ services:
     devices:
       - /dev/snd:/dev/snd
     ports:
-      - "8737:8080"                               # NAS port 8737 → app port 8080
+      - "8737:8080"                                 # open http://<NAS-IP>:8737
     volumes:
-      - /mnt/tank/apps/jukebox:/data                # app data (must be owned by 568:568)
-      - /mnt/tank/media/music:/music:ro             # your music library, read-only
+      - jukebox_data:/data
+      # - /mnt/BDATA/ODATA/Musica:/music:ro         # optional: your music folder (read-only)
     environment:
       TZ: "America/Bogota"
       AUDIO_DEVICE: "plughw:CARD=Generic_1,DEV=0"   # analog output (card "Generic_1")
@@ -30,3 +30,5 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+volumes:
+  jukebox_data:
