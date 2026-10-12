@@ -59,6 +59,12 @@ class ProxyMiddleware:
 
         path: str = scope.get("path", "")
         base = self.config.base_path
+        if base and path == base and scope["type"] == "http":
+            # "/jukebox" -> "/jukebox/" so relative URLs in the UI resolve correctly
+            await send({"type": "http.response.start", "status": 308,
+                        "headers": [(b"location", (base + "/").encode()), (b"content-length", b"0")]})
+            await send({"type": "http.response.body", "body": b""})
+            return
         if base and (path == base or path.startswith(base + "/")):
             scope["path"] = path[len(base):] or "/"
             raw = scope.get("raw_path")

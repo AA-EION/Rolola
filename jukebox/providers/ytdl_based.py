@@ -82,7 +82,9 @@ class YouTubeProvider(YtdlpProvider):
 
     def _entry(self, e: dict) -> Track | None:
         vid = e.get("id")
-        if not vid or not YT_ID.match(vid) or e.get("live_status") in ("is_live", "is_upcoming"):
+        # flat search results carry no duration for live streams and premieres
+        if (not vid or not YT_ID.match(vid) or e.get("live_status") in ("is_live", "is_upcoming")
+                or ("duration" in e and not e.get("duration"))):
             return None
         title = e.get("title") or vid
         channel = e.get("channel") or e.get("uploader") or ""
@@ -103,7 +105,7 @@ class YouTubeProvider(YtdlpProvider):
         if any(w in title for w in ("reaction", "tutorial", "cover by", "karaoke", "review")):
             s += 3
         if t.duration and t.duration > 900:
-            s += 2
+            s += 2 if t.duration < 1800 else 6  # mixes and compilations last
         return s
 
     async def search(self, query: str, limit: int = 20) -> list[Track]:

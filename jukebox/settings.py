@@ -34,7 +34,7 @@ DEFAULTS: dict[str, Any] = {
     "user_can_pause": True,
     "user_can_seek": False,
     "user_can_volume": True,
-    "autoplay_mode": "local_shuffle",  # off | playlist | local_shuffle | radio | history | similar
+    "autoplay_mode": "similar",      # off | playlist | local_shuffle | radio | history | similar
     "autoplay_playlist_id": None,
     "autoplay_station": None,        # Track dict of a radio station
     "autoplay_yield": True,          # user tracks interrupt autoplay
@@ -49,13 +49,16 @@ DEFAULTS: dict[str, Any] = {
     "substitute_unavailable": True,
     "audio_device": None,            # None -> AUDIO_DEVICE env
     "prefetch_count": 2,
+    "sponsorblock": True,
+    "sponsorblock_categories": ["music_offtopic"],
+    "lyrics": True,
 }
 
 # keys a normal user may read (sent with /api/state)
 PUBLIC_KEYS = (
     "language", "fairness_enabled", "max_queued_per_user", "skip_mode", "skip_value",
     "owner_can_skip", "max_volume", "volume_cooldown_s", "user_can_pause", "user_can_seek",
-    "user_can_volume", "schedule_enabled", "schedule", "autoplay_mode", "max_track_minutes",
+    "user_can_volume", "schedule_enabled", "schedule", "autoplay_mode", "max_track_minutes", "lyrics",
 )
 
 

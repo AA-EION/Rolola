@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from .providers.base import ProviderError
+from .errors import ProviderError
 
 USER_AGENT = "OfficeJukebox/1.0 (+https://github.com/aa-eion/rolola)"
 

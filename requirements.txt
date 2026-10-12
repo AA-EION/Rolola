@@ -1,0 +1,10 @@
+# Runtime dependencies (pinned). yt-dlp can additionally be updated at runtime
+# into the data volume from the admin panel; this pin is the fallback.
+fastapi==0.143.0
+starlette==1.7.0
+pydantic==2.14.1
+uvicorn[standard]==0.54.0
+httpx==0.28.1
+mutagen==1.48.1
+cryptography==50.0.2
+yt-dlp[default]==2026.8.19

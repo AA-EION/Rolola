@@ -68,6 +68,7 @@ class MpvEngine:
         self.restarts = 0
         self.last_error: str | None = None
         self.stderr_tail: list[str] = []
+        self._events: asyncio.Queue = asyncio.Queue()
 
     # --- lifecycle --------------------------------------------------------
     def args(self) -> list[str]:
@@ -102,6 +103,7 @@ class MpvEngine:
     async def start(self) -> None:
         self._stopping = False
         self._tasks.append(asyncio.create_task(self._supervise(), name="mpv-supervisor"))
+        self._tasks.append(asyncio.create_task(self._dispatch(), name="mpv-events"))
 
     async def stop(self) -> None:
         self._stopping = True
@@ -162,6 +164,10 @@ class MpvEngine:
             stderr=asyncio.subprocess.PIPE,
         )
         self._tasks.append(asyncio.create_task(self._read_stderr(self.proc), name="mpv-stderr"))
+        try:  # audio first: works when the container has CAP_SYS_NICE, harmless otherwise
+            os.setpriority(os.PRIO_PROCESS, self.proc.pid, -10)
+        except OSError:
+            pass
         for _ in range(100):
             if self.socket_path.exists() or self.proc.returncode is not None:
                 break
@@ -206,9 +212,18 @@ class MpvEngine:
                 continue
             if msg.get("event") == "property-change":
                 self.props[msg.get("name")] = msg.get("data")
+            # Handlers run in another task: they may send commands and wait
+            # for replies, which this reader must stay free to deliver.
+            self._events.put_nowait(msg)
+
+    async def _dispatch(self) -> None:
+        while True:
+            msg = await self._events.get()
             if self.on_event:
                 try:
                     await self.on_event(msg)
+                except asyncio.CancelledError:
+                    raise
                 except Exception:
                     log.exception("error handling mpv event %s", msg.get("event"))
 

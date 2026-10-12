@@ -12,20 +12,13 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
+from ..errors import ProviderError  # noqa: F401  (re-exported for providers)
 from ..models import Playable, Track
 
 if TYPE_CHECKING:
     from ..services import Services
 
 Status = Literal["connected", "needs_config", "disabled", "broken", "rate_limited", "offline", "planned"]
-
-
-class ProviderError(Exception):
-    """A plain-language message safe to show to users."""
-
-    def __init__(self, message: str, status: Status | None = None):
-        super().__init__(message)
-        self.status = status
 
 
 @dataclass
