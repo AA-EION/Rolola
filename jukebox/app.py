@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket
+from fastapi import Depends, FastAPI, Query, Request, WebSocket
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -376,8 +376,16 @@ def create_app(config: Config | None = None) -> FastAPI:
     # ------------------------------------------------------------ queue
     def _validate_for_queue(tracks: list[Track], ident: Identity) -> tuple[list[Track], list[str]]:
         max_s = int(svc.settings.get("max_track_minutes")) * 60
+        queued = {i.track.key for i in player.queue.ordered()}
+        for p in (player.current.pending if player.current else None, player.loading):
+            if p:
+                queued.add(p.track.key)
         ok, skipped = [], []
         for t in tracks:
+            if t.key in queued:
+                skipped.append(f"{t.title}: already in the queue")
+                continue
+            queued.add(t.key)
             prov = svc.provider(t.source)
             if not prov or not (prov.enabled or svc.settings.get("substitute_unavailable")):
                 skipped.append(f"{t.title}: source disabled")

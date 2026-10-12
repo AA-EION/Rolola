@@ -176,7 +176,8 @@ input[type=range] { accent-color: var(--accent); height: 28px; }
 .group-h h2 { margin: 0; }
 .add-btn { width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--card2); color: var(--text); display: grid; place-items: center; cursor: pointer; flex: none; }
 .add-btn.done { background: var(--good); color: #062; }
-.add-btn:hover { background: var(--accent); color: #fff; }
+.add-btn:hover:not(:disabled) { background: var(--accent); color: #fff; }
+.add-btn:disabled { opacity: .3; cursor: not-allowed; }
 
 /* ---------- sheet & toasts ---------- */
 .backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.5); display: flex; align-items: flex-end; justify-content: center; animation: fade .15s; }

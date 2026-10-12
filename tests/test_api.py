@@ -102,7 +102,7 @@ def test_queue_fairness_votes_and_owner_skip(client):
         assert r["skipped"] is False
         assert ana.get("/api/state").json()["votes"]["count"] == 1
         ben.post("/api/player/vote", headers=H)               # 2 of 2 -> skip
-        wait_for(lambda: ((s := ana.get("/api/state").json())["now"] or {}).get("play_id") != playing)
+        wait_for(lambda: (ana.get("/api/state").json()["now"] or {}).get("play_id") != playing)
         now = wait_for(lambda: (s := ana.get("/api/state").json())["now"] and s["now"]["user"]["name"] == "Ben" and s)
         assert now["votes"]["count"] == 0
         r = ben.post("/api/player/skip", headers=H).json()    # owner skips own track immediately
@@ -114,6 +114,7 @@ def test_queue_fairness_votes_and_owner_skip(client):
 
 
 def test_users_cannot_remove_others_tracks(client):
+    client.app_svc.player.queue.clear()
     a, b = join(client, "Dee"), join(client, "Eve")
     item = a.post("/api/queue", json={"track": search(a, "charlie")[0]}, headers=H).json()["ids"][0]
     assert b.delete(f"/api/queue/{item}", headers=H).status_code == 400
@@ -152,3 +153,12 @@ def test_blocklist_blocks_adding(client):
     u = join(client, "Ivy")
     r = u.post("/api/queue", json={"track": search(u, "bravo")[0]}, headers=H)
     assert r.status_code == 400 and r.json()["error"] == "err.nothing_added"
+
+
+def test_duplicates_are_refused(client):
+    client.app_svc.player.queue.clear()
+    u = join(client, "Jo")
+    t = search(u, "delta")[0]
+    assert u.post("/api/queue", json={"track": t}, headers=H).status_code == 200
+    r = join(client, "Kim").post("/api/queue", json={"track": t}, headers=H)
+    assert r.status_code == 400 and "already in the queue" in r.json()["params"]["reasons"][0]

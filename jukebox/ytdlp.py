@@ -64,6 +64,8 @@ def _friendly(stderr: str) -> str:
         return "Age-restricted content (needs cookies from a signed-in account)."
     if "http error 429" in s or "too many requests" in s:
         return "Rate-limited by the source. Try again later."
+    if "http error 403" in s or "forbidden" in s:
+        return "The source refused the request (HTTP 403). Updating yt-dlp usually fixes this."
     if "unable to download" in s or "timed out" in s or "name resolution" in s:
         return "Network problem reaching the source."
     if "drm" in s:
@@ -117,12 +119,19 @@ class Ytdlp:
             code, out, err = await run_lowprio(cmd, timeout, self.env())
         except asyncio.TimeoutError:
             raise YtdlpError("The source took too long to answer.")
-        if code != 0:
-            raise YtdlpError(_friendly(err.decode(errors="replace")))
         try:
-            return json.loads(out)
+            data = json.loads(out) if out.strip() else None
         except ValueError:
+            data = None
+        if code != 0:
+            # e.g. the 2nd page of search results got a 403: keep what we already have
+            if isinstance(data, dict) and data.get("entries"):
+                log.info("yt-dlp partial result for %s: %s", target, _friendly(err.decode(errors="replace")))
+                return data
+            raise YtdlpError(_friendly(err.decode(errors="replace")))
+        if data is None:
             raise YtdlpError("Unexpected answer from yt-dlp.")
+        return data
 
     async def download(self, url: str, out_base: Path, *, timeout: float = 180.0,
                        cookies: str | None = None, max_mb: int = 300) -> Path:

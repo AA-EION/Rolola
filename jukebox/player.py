@@ -96,6 +96,7 @@ class Player:
         self._last_volume_change: dict[int, float] = {}
         self._user_names: dict[int, str] = {}
         self._autoplay_filling = False
+        self._autoplay_backoff: dict[str, float] = {}
         self._last_trim = 0.0
 
     # ------------------------------------------------------------------ setup
@@ -425,9 +426,14 @@ class Player:
              time.time(), time.time(), "error", msg[:300]),
         )
         log.warning("track failed", extra={"ctx": {"track": pending.track.key, "error": msg}})
-        self._toast("toast.track_failed", "error", title=pending.track.title, reason=msg)
-        if pending.autoplay and self.autoplay_buffer and self.autoplay_buffer[0].key == pending.track.key:
-            self.autoplay_buffer.pop(0)
+        if pending.autoplay:
+            # nobody picked it: don't alarm the room, and stop leaning on a failing source
+            self._autoplay_backoff[pending.track.source] = time.time() + 900
+            if self.autoplay_buffer and self.autoplay_buffer[0].key == pending.track.key:
+                self.autoplay_buffer.pop(0)
+            self._fail_streak = max(0, self._fail_streak - 1)
+        else:
+            self._toast("toast.track_failed", "error", title=pending.track.title, reason=msg)
 
     def _finish(self, outcome: str) -> None:
         cur = self.current
@@ -699,6 +705,8 @@ class Player:
                 "SELECT track_key FROM history ORDER BY started_at DESC LIMIT 60")}
             queued = {t.key for t in self.autoplay_buffer}
             for t in picks:
+                if self._autoplay_backoff.get(t.source, 0) > time.time():
+                    continue
                 if t.key in recent or t.key in queued or self.svc.blocklist.reason(t):
                     continue
                 if t.duration and t.duration > int(self.settings.get("max_track_minutes")) * 60:
@@ -740,6 +748,8 @@ class Player:
             for seed in seeds[:2]:
                 for pid in ("youtube", "local"):
                     prov = self.svc.provider(pid)
+                    if self._autoplay_backoff.get(pid, 0) > time.time():
+                        continue
                     if prov and prov.enabled and "similar" in prov.capabilities:
                         try:
                             found = await prov.similar(seed, 10)
