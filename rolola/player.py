@@ -168,6 +168,12 @@ class Player:
                                        autoplay=saved.get("autoplay", False), resume_at=saved.get("position"))
                 self.paused = bool(saved.get("paused"))
                 self.paused_since = saved.get("paused_since") if self.paused else None
+                self.paused_by_schedule = self.paused and bool(saved.get("paused_by_schedule"))
+                if self._quiet() and not self.paused:
+                    # went down while playing and came back during quiet hours: this is a
+                    # schedule pause, so it resumes (or goes stale) like one
+                    self.paused = self.paused_by_schedule = True
+                    self.paused_since = saved.get("saved_at") or time.time()
             except Exception:
                 self._resume = None
         await self.engine.start()
@@ -211,8 +217,11 @@ class Player:
         self._wake_prefetch.set()
         self.changed()
 
+    def _quiet(self) -> bool:
+        return bool(self.settings.get("schedule_enabled")) and not schedule_allows(self.settings.get("schedule"))
+
     def _can_play(self) -> bool:
-        if self.settings.get("schedule_enabled") and not schedule_allows(self.settings.get("schedule")):
+        if self._quiet():
             return False
         return not self.paused and not self.stopped
 
@@ -223,7 +232,7 @@ class Player:
     def status(self) -> str:
         if self.audio_fault:
             return "audio_error"
-        if self.settings.get("schedule_enabled") and not schedule_allows(self.settings.get("schedule")):
+        if self._quiet():
             return "quiet_hours"
         if self.loading and not self.current:
             return "loading"
@@ -667,7 +676,8 @@ class Player:
             self.settings.set("player_resume", {
                 "track": p.track.model_dump(), "user_id": p.user_id, "autoplay": p.autoplay,
                 "position": self.live_position() if cur else p.resume_at, "paused": self.paused,
-                "paused_since": self.paused_since, "saved_at": time.time(),
+                "paused_since": self.paused_since, "paused_by_schedule": self.paused_by_schedule,
+                "saved_at": time.time(),
             })
         elif self.settings.get("player_resume"):
             self.settings.reset("player_resume")
@@ -722,12 +732,17 @@ class Player:
         while True:
             await asyncio.sleep(10)
             try:
-                allowed = not self.settings.get("schedule_enabled") or schedule_allows(self.settings.get("schedule"))
-                if not allowed and self.current and not self.paused:
+                allowed = not self._quiet()
+                if not allowed and not self.paused and (self.current or self._resume or self.loading):
+                    # also when the song was still loading or held back: otherwise it never goes
+                    # stale and yesterday's song + queue come back the next morning
                     log.info("quiet hours started: pausing")
-                    await self.engine.set("pause", True)
+                    if self.current:
+                        await self.engine.set("pause", True)
+                        self.position = await self.engine.get("time-pos", self.position) or self.position
                     self.paused = self.paused_by_schedule = True
                     self.paused_since = time.time()
+                    self._save_resume()
                     self.changed()
                 elif allowed and self.paused_by_schedule:
                     log.info("quiet hours ended: resuming")
@@ -841,7 +856,7 @@ class Player:
             since = self.paused_since
             await self.stop_all(clear_queue=False, keep_silent=False)
             self.queue.remove_older_than(since)
-        elif self.paused and not self.current:
+        elif self.paused and not self.current and not self._quiet():
             self.paused, self.paused_since = False, None  # nothing to resume: just play the new track
         if self.stopped:
             self._set_stopped(False)
@@ -909,14 +924,25 @@ class Player:
     async def pause(self) -> None:
         if not self.paused:
             self.paused_since = time.time()
+            self.paused_by_schedule = False
+        elif self._quiet():
+            return  # already paused for quiet hours: keep it a schedule pause so it resumes later
         self.paused = True
-        self.paused_by_schedule = False
         if self.current:
             await self.engine.set("pause", True)
             self.position = await self.engine.get("time-pos", self.position) or self.position
         self.changed()
 
     async def resume_playback(self) -> None:
+        if self._quiet():
+            # play is pressed during quiet hours: nothing may sound now (the old code unpaused
+            # mpv for up to 10 s), but music should come back by itself when the window opens
+            if self.paused:
+                self.paused_by_schedule = True
+            if self.stopped:
+                self._set_stopped(False)
+            self.changed()
+            return
         if self.paused and self._is_stale(self.paused_since):
             await self.stop_all(clear_queue=True, keep_silent=False)  # play fresh music, not yesterday's
         self.paused, self.paused_since = False, None

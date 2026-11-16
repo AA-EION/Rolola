@@ -59,7 +59,8 @@ def _minutes(hhmm: str) -> int:
 
 def schedule_allows(schedule: list[dict], now: datetime | None = None) -> bool:
     """True when ``now`` falls inside any window. Windows may cross midnight
-    (start > end); the day refers to the day the window starts."""
+    (start > end); the day refers to the day the window starts. start == end
+    means the whole day (00:00-00:00), not an empty window."""
     now = now or datetime.now()
     minute = now.hour * 60 + now.minute
     today = now.weekday()
@@ -70,7 +71,10 @@ def schedule_allows(schedule: list[dict], now: datetime | None = None) -> bool:
         except (KeyError, ValueError):
             continue
         days = w.get("days") or list(range(7))
-        if start <= end:
+        if start == end:
+            if today in days and minute >= start or yesterday in days and minute < start:
+                return True
+        elif start < end:
             if today in days and start <= minute < end:
                 return True
         else:
@@ -82,9 +86,21 @@ def schedule_allows(schedule: list[dict], now: datetime | None = None) -> bool:
 
 
 def next_window_start(schedule: list[dict], now: datetime | None = None) -> datetime | None:
+    """When music is next allowed: the exact start of the next window (not rounded)."""
     now = (now or datetime.now()).replace(second=0, microsecond=0)
-    for step in range(1, 8 * 24 * 60, 5):
-        t = now + timedelta(minutes=step)
-        if schedule_allows(schedule, t):
-            return t
+    best = None
+    for offset in range(0, 8):
+        day = now + timedelta(days=offset)
+        for w in schedule or []:
+            try:
+                start = _minutes(w["start"])
+            except (KeyError, ValueError):
+                continue
+            if day.weekday() not in (w.get("days") or list(range(7))):
+                continue
+            t = day.replace(hour=start // 60, minute=start % 60)
+            if t > now and schedule_allows(schedule, t) and (best is None or t < best):
+                best = t
+        if best:
+            return best
     return None

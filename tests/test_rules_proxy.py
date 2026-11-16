@@ -12,7 +12,7 @@ from rolola.config import load_config
 from rolola.db import Database
 from rolola.models import Track
 from rolola.proxy import ProxyMiddleware
-from rolola.rules import Blocklist, schedule_allows
+from rolola.rules import Blocklist, next_window_start, schedule_allows
 from rolola.settings import Secrets, Settings
 
 OFFICE = [{"days": [0, 1, 2, 3, 4], "start": "09:00", "end": "18:00"}]
@@ -143,3 +143,13 @@ def test_provider_secrets_are_encrypted_at_rest(tmp_path):
     raw = db.scalar("SELECT value FROM settings WHERE key='provider.jamendo'")
     assert "abc123secret" not in raw and "enc:" in raw
     assert Settings(db, {}, Secrets(tmp_path, "")).provider_config("jamendo")["client_id"] == "abc123secret"
+
+
+def test_schedule_whole_day_and_exact_next_start():
+    all_day = [{"days": [0], "start": "00:00", "end": "00:00"}]
+    assert schedule_allows(all_day, at(2026, 10, 12, 0, 0)) and schedule_allows(all_day, at(2026, 10, 12, 23, 59))
+    assert not schedule_allows(all_day, at(2026, 10, 13, 0, 0))
+    # Monday 18:02 -> Tuesday 09:00 sharp (it used to say 09:03)
+    assert next_window_start(OFFICE, at(2026, 10, 12, 18, 2)) == at(2026, 10, 13, 9, 0)
+    assert next_window_start(OFFICE, at(2026, 10, 16, 19, 0)) == at(2026, 10, 19, 9, 0)  # Friday -> Monday
+    assert next_window_start(OFFICE, at(2026, 10, 12, 7, 0)) == at(2026, 10, 12, 9, 0)

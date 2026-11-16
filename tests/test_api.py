@@ -201,3 +201,25 @@ def test_stop_everything_and_stale_pause(client):
     s = wait_for(lambda: (s := state())["now"] and s["now"]["track"]["title"] == "Charlie" and s)
     assert s["status"] == "playing" and all(q["track"]["title"] != "Alpha" for q in s["queue"])
     admin.put("/api/admin/settings", json={"values": {"autoplay_mode": "off"}}, headers=H)
+
+
+def test_quiet_hours_play_does_not_sound_and_resumes_after(client):
+    player = client.app_svc.player
+    admin = join(client, "Quinn")
+    admin.post("/api/session/admin", json={"password": "admin-pass-123"}, headers=H)
+    state = lambda: admin.get("/api/state").json()  # noqa: E731
+    admin.post("/api/queue", json={"track": search(admin, "alpha")[0]}, headers=H)
+    wait_for(lambda: state()["status"] == "playing")
+    import datetime
+    never = [{"days": [(datetime.datetime.now().weekday() + 3) % 7], "start": "00:00", "end": "00:00"}]
+    admin.put("/api/admin/settings", json={"values": {"schedule": never, "schedule_enabled": True}}, headers=H)
+    wait_for(lambda: player.paused_by_schedule, timeout=20)
+    assert state()["status"] == "quiet_hours"
+    # pressing play during quiet hours must not unpause mpv nor turn it into a manual pause
+    admin.post("/api/player/play", headers=H)
+    assert player.paused and player.paused_by_schedule
+    player._save_resume()
+    assert client.app_svc.settings.get("player_resume")["paused_by_schedule"] is True  # survives a restart
+    admin.put("/api/admin/settings", json={"values": {"schedule_enabled": False}}, headers=H)
+    wait_for(lambda: state()["status"] == "playing", timeout=20)
+    admin.post("/api/admin/stop", json={}, headers=H)
