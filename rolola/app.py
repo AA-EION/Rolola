@@ -22,6 +22,7 @@ from . import __version__
 from .auth import COOKIE, LEGACY_COOKIE, Identity
 from .config import Config, load_config
 from .db import dumps, loads
+from . import audiodev
 from .engine import alsa_cards, snd_access
 from .housekeeping import cleanup
 from .hub import Client
@@ -119,7 +120,9 @@ class StationBody(BaseModel):
 
 
 class DeviceBody(BaseModel):
-    device: str | None = Field(default=None, max_length=200)
+    device: str | None = Field(default=None, max_length=200)     # manual device; null = AUDIO_DEVICE env
+    mode: Literal["auto", "manual"] | None = None
+    prefer: str | None = Field(default=None, max_length=200)     # auto mode: card to prefer; "" = forget
 
 
 class MatchBody(BaseModel):
@@ -700,7 +703,7 @@ def create_app(config: Config | None = None) -> FastAPI:
             if key in DEFAULTS:
                 svc.settings.reset(key)
         for key, value in body.values.items():
-            if key not in DEFAULTS or key in ("audio_device", "volume"):
+            if key not in DEFAULTS or key in ("audio_device", "audio_device_mode", "audio_device_pref", "volume"):
                 continue
             default = DEFAULTS[key]
             if isinstance(default, bool) and not isinstance(value, bool):
@@ -861,9 +864,14 @@ def create_app(config: Config | None = None) -> FastAPI:
 
     @app.post("/api/admin/audio-device", tags=["admin"])
     async def set_device(body: DeviceBody, ident: Identity = Depends(admin)):
-        await player.change_device(body.device.strip() if body.device else None)
-        log.info("audio device changed", extra={"ctx": {"by": ident.name, "device": player.audio_device()}})
-        return {"device": player.audio_device()}
+        set_device = "device" in body.model_fields_set or not body.model_fields_set
+        await player.change_device(body.device.strip() if body.device else None, mode=body.mode,
+                                   prefer=body.prefer.strip() if body.prefer is not None else None,
+                                   set_device=set_device)
+        log.info("audio device changed", extra={"ctx": {"by": ident.name, "mode": player.device_mode(),
+                                                         "device": player.audio_device()}})
+        return {"device": player.audio_device(), "mode": player.device_mode(),
+                "reason": player.device_info.get("reason")}
 
     @app.post("/api/admin/cache/clear", tags=["admin"])
     async def clear_cache(_: Identity = Depends(admin)):
@@ -893,7 +901,14 @@ def create_app(config: Config | None = None) -> FastAPI:
             "load": os.getloadavg(),
             "audio": {
                 "configured_device": player.audio_device(),
+                "manual_device": player.manual_device(),
                 "env_device": config.audio_device,
+                "mode": player.device_mode(),
+                "auto_reason": player.device_info.get("reason"),
+                "auto_pref": svc.settings.get("audio_device_pref"),
+                "outputs": [{k: c[k] for k in ("device", "label", "kind", "score")}
+                            for c in audiodev.resolve(svc.settings.get("audio_device_pref"),
+                                                      player.manual_device())["candidates"]],
                 "engine_alive": eng.alive,
                 "engine_restarts": eng.restarts,
                 "current_ao": await eng.get("current-ao") if eng.alive else None,

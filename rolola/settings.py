@@ -47,7 +47,9 @@ DEFAULTS: dict[str, Any] = {
     "allow_private_urls": False,
     "public_display": True,
     "substitute_unavailable": True,
-    "audio_device": None,            # None -> AUDIO_DEVICE env
+    "audio_device": None,            # None -> AUDIO_DEVICE env (used as-is in manual mode)
+    "audio_device_mode": "auto",     # auto: find the card by what it is | manual: use audio_device
+    "audio_device_pref": None,       # auto mode: fingerprint of the card the admin picked
     "prefetch_count": 2,
     "stale_minutes": 60,             # paused/stopped this long -> drop the paused song and old queue
     "sponsorblock": True,

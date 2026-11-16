@@ -752,19 +752,33 @@ async function adminAudio(body) {
   const options = new Map();
   for (const dev of a.mpv_devices) options.set(dev.name.replace(/^alsa\//, ''), dev.description);
   for (const c of a.alsa_cards) options.set(c.suggested_device, `${c.name} (${c.id})`);
-  const custom = h('input', { type: 'text', value: a.configured_device, 'aria-label': t('admin.device'), list: 'devlist' });
+  const custom = h('input', { type: 'text', value: a.manual_device, 'aria-label': t('admin.device'), list: 'devlist' });
   const kv = (obj) => h('div', { class: 'kv' }, ...Object.entries(obj).flatMap(([k, v]) => [h('div', {}, k), h('div', { style: { wordBreak: 'break-all' } }, typeof v === 'object' ? JSON.stringify(v) : String(v ?? '—'))]));
+  const auto = a.mode !== 'manual';
+  const setDevice = async (payload) => { await act(() => api('POST', 'api/admin/audio-device', payload), t('admin.saved')); setTimeout(() => adminAudio(body), 1500); };
+  const modeSel = h('select', { 'aria-label': t('admin.device_mode'), onchange: () => setDevice({ mode: modeSel.value }) },
+    h('option', { value: 'auto', selected: auto }, t('admin.device_auto')), h('option', { value: 'manual', selected: !auto }, t('admin.device_manual')));
+  const outputs = a.outputs || [];
+  const preferSel = h('select', { 'aria-label': t('admin.device_prefer'), onchange: () => setDevice({ prefer: preferSel.value }) },
+    h('option', { value: '', selected: !a.auto_pref }, t('admin.device_best')),
+    ...outputs.map((o) => h('option', { value: o.device, selected: !!a.auto_pref && o.device === a.configured_device }, `${o.label} · ${o.kind}`)));
+  const deviceUi = auto
+    ? [h('label', { class: 'field' }, h('span', {}, t('admin.device_prefer')), preferSel),
+       h('div', { class: 'small muted' }, t('admin.device_using'), ' ', h('code', {}, a.configured_device), a.auto_reason ? ` — ${a.auto_reason}` : ''),
+       h('div', { class: 'small faint' }, t('admin.device_auto_hint'))]
+    : [h('label', { class: 'field' }, h('span', {}, t('admin.device')), custom, h('datalist', { id: 'devlist' }, ...[...options].map(([v, label]) => h('option', { value: v }, label)))),
+       h('div', { class: 'small faint' }, 'env AUDIO_DEVICE = ' + a.env_device)];
   setKids(body, 
-    h('label', { class: 'field' }, h('span', {}, t('admin.device')), custom, h('datalist', { id: 'devlist' }, ...[...options].map(([v, label]) => h('option', { value: v }, label)))),
-    h('div', { class: 'small faint' }, 'env AUDIO_DEVICE = ' + a.env_device),
+    h('label', { class: 'field' }, h('span', {}, t('admin.device_mode')), modeSel),
+    ...deviceUi,
     h('div', { class: 'row wrap', style: { margin: '10px 0' } },
-      h('button', { class: 'btn primary small', onclick: async () => { await act(() => api('POST', 'api/admin/audio-device', { device: custom.value.trim() || null }), t('admin.saved')); setTimeout(() => adminAudio(body), 1500); } }, t('admin.apply')),
+      auto ? null : h('button', { class: 'btn primary small', onclick: () => setDevice({ device: custom.value.trim() || null }) }, t('admin.apply')),
       h('button', { class: 'btn small', onclick: () => act(() => api('POST', 'api/admin/test-tone')) }, t('admin.test_tone')),
       h('button', { class: 'btn small', onclick: async () => { toast('…'); const r = await act(() => api('POST', 'api/admin/ytdlp/update')); if (r) toast('yt-dlp ' + r.result, r.result.startsWith('ok') ? 'success' : 'error'); adminAudio(body); } }, t('admin.ytdlp_update')),
       h('button', { class: 'btn small', onclick: () => act(() => api('POST', 'api/admin/library/rescan'), t('admin.saved')) }, t('admin.rescan')),
       h('button', { class: 'btn small', onclick: () => confirmSheet(t('admin.clear_cache') + '?', () => act(() => api('POST', 'api/admin/cache/clear'), t('admin.saved'))) }, t('admin.clear_cache')),
       h('button', { class: 'icon-btn small', 'aria-label': 'Refresh', onclick: () => adminAudio(body) }, icon('refresh'))),
-    h('h2', {}, 'Audio'), kv({ device: a.configured_device, engine: a.engine_alive ? 'running' : 'down', restarts: a.engine_restarts, output: a.current_ao, fault: a.fault, '/dev/snd': a.dev_snd.present ? (a.dev_snd.writable ? 'ok (writable)' : 'present, NOT writable — check group_add') : 'missing — map /dev/snd', groups: (a.dev_snd.groups || []).join(','), mpv: a.mpv_version }),
+    h('h2', {}, 'Audio'), kv({ mode: a.mode, device: a.configured_device, engine: a.engine_alive ? 'running' : 'down', restarts: a.engine_restarts, output: a.current_ao, fault: a.fault, '/dev/snd': a.dev_snd.present ? (a.dev_snd.writable ? 'ok (writable)' : 'present, NOT writable — check group_add') : 'missing — map /dev/snd', groups: (a.dev_snd.groups || []).join(','), mpv: a.mpv_version }),
     a.alsa_cards.length ? h('div', { class: 'small', style: { marginTop: '8px' } }, ...a.alsa_cards.map((c) => h('div', {}, `card ${c.index}: ${c.id} — ${c.name} → `, h('code', {}, c.suggested_device)))) : null,
     a.mpv_log.length ? h('pre', { class: 'logs' }, a.mpv_log.join('\n')) : null,
     h('h2', {}, 'yt-dlp'), kv(d.ytdlp), h('h2', {}, 'Storage'), kv(d.storage), h('h2', {}, 'Library'), kv({ path: d.library.path, mounted: d.library.mounted, tracks: d.library.tracks, last_scan: d.library.last_scan }),

@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from . import audiodev
 from .db import dumps, loads
 from .engine import EngineError, MpvEngine
 from .logs import get_logger
@@ -85,6 +86,8 @@ class Player:
         self.duration: float | None = None
         self.position_at = time.time()
         self.audio_fault: str | None = None
+        self.device_info: dict[str, Any] = {}
+        self._last_device_check = 0.0
         self.votes = VoteBox()
         self.autoplay_buffer: list[Track] = []
         self._resume: Pending | None = None
@@ -106,11 +109,48 @@ class Player:
     def volume(self) -> int:
         return int(self.settings.get("volume"))
 
-    def audio_device(self) -> str:
+    def manual_device(self) -> str:
         return self.settings.get("audio_device") or self.svc.config.audio_device
 
+    def audio_device(self) -> str:
+        """The device mpv uses right now."""
+        return self.engine.device
+
+    def device_mode(self) -> str:
+        return "manual" if self.settings.get("audio_device_mode") == "manual" else "auto"
+
+    def resolve_device(self) -> str:
+        """Work out which device mpv should use (auto mode looks at the cards present now)."""
+        manual = self.manual_device()
+        mode = self.device_mode()
+        if mode == "manual" or self.engine.disable_audio or manual.strip().lower() in ("null", "none"):
+            self.device_info = {"mode": mode, "device": manual, "reason": "manual setting", "candidates": []}
+            return manual
+        res = audiodev.resolve(self.settings.get("audio_device_pref"), manual)
+        if res["device"] is None:
+            res = {**res, "device": manual, "reason": res["reason"] + f"; falling back to {manual}"}
+        self.device_info = {"mode": mode, "device": res["device"], "reason": res["reason"],
+                            "candidates": res["candidates"]}
+        return res["device"]
+
+    async def recheck_device(self) -> bool:
+        """Auto mode: switch to a better card if the cards changed (late driver load, USB replug)."""
+        if self.device_mode() != "auto":
+            return False
+        device = await asyncio.get_running_loop().run_in_executor(None, self.resolve_device)
+        if device == self.engine.device:
+            return False
+        log.warning("audio device changed automatically", extra={"ctx": {
+            "from": self.engine.device, "to": device, "reason": self.device_info.get("reason")}})
+        self.engine.device = device
+        self.audio_fault = None
+        await self.engine.restart()
+        return True
+
     async def start(self) -> None:
-        self.engine.device = self.audio_device()
+        self.engine.device = self.resolve_device()
+        log.info("audio device", extra={"ctx": {"mode": self.device_mode(), "device": self.engine.device,
+                                                 "reason": self.device_info.get("reason")}})
         self.engine.initial_volume = min(self.volume, int(self.settings.get("max_volume")))
         self.stopped = bool(self.settings.get("player_stopped"))
         saved = self.settings.get("player_resume")
@@ -698,6 +738,11 @@ class Player:
                     # hours autoplay may start again; after a manual pause stay silent.
                     log.info("paused for too long: clearing the paused song and the queue")
                     await self.stop_all(clear_queue=True, keep_silent=not self.paused_by_schedule)
+                if self.device_mode() == "auto" and (
+                        self.audio_fault or not self.engine.alive or time.time() - self._last_device_check > 60):
+                    self._last_device_check = time.time()
+                    if await self.recheck_device():
+                        continue  # mpv restarts; _on_engine_restart resumes playback
                 if self.audio_fault and self.engine.alive and not self.current:
                     self.kick()  # retry the sound card
                 elif not self.current:
@@ -988,11 +1033,28 @@ class Player:
             self.paused = False
             self.changed()
 
-    async def change_device(self, device: str | None) -> None:
-        if device:
-            self.settings.set("audio_device", device)
-        else:
-            self.settings.reset("audio_device")
-        self.engine.device = self.audio_device()
+    async def change_device(self, device: str | None = None, mode: str | None = None,
+                            prefer: str | None = None, set_device: bool = True) -> None:
+        """Manual device (``device``, None = back to AUDIO_DEVICE), mode and the auto-mode preference.
+
+        ``prefer``: a device string of a card present now -> remember that card for auto mode;
+        "" -> forget it (pure auto-detection).  Picking a manual device that exists now also
+        remembers it, so switching back to auto keeps using the same card.
+        """
+        if mode in ("auto", "manual"):
+            self.settings.set("audio_device_mode", mode)
+        if set_device:
+            if device:
+                self.settings.set("audio_device", device)
+            else:
+                self.settings.reset("audio_device")
+        target = prefer if prefer is not None else (device if set_device else None)
+        if prefer == "":
+            self.settings.reset("audio_device_pref")
+        elif target:
+            cand = audiodev.find(target, audiodev.candidates())
+            if cand:
+                self.settings.set("audio_device_pref", audiodev.fingerprint(cand))
+        self.engine.device = self.resolve_device()
         self.audio_fault = None
         await self.engine.restart()  # supervisor restarts mpv; _on_engine_restart resumes

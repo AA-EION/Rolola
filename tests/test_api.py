@@ -140,6 +140,11 @@ def test_admin_login_and_admin_only_endpoints(client):
     assert u.get("/api/state").json()["volume"] <= 70
     diag = u.get("/api/admin/diagnostics").json()
     assert diag["audio"]["engine_alive"] and diag["library"]["tracks"] == 4
+    assert diag["audio"]["mode"] == "auto" and diag["audio"]["configured_device"] == "null"  # null always wins
+    r = u.post("/api/admin/audio-device", json={"mode": "manual"}, headers=H).json()
+    assert r["mode"] == "manual" and r["device"] == "null"
+    assert u.get("/api/admin/diagnostics").json()["audio"]["manual_device"] == "null"
+    assert u.post("/api/admin/audio-device", json={"mode": "auto", "prefer": ""}, headers=H).json()["mode"] == "auto"
     # secrets never come back in clear text
     u.put("/api/admin/providers/jamendo", json={"values": {"client_id": "my-secret-id"}}, headers=H)
     prov = next(p for p in u.get("/api/admin/providers").json() if p["id"] == "jamendo")

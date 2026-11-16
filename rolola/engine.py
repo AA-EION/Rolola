@@ -231,6 +231,7 @@ class MpvEngine:
         for fut in self._pending.values():
             if not fut.done():
                 fut.set_exception(EngineError(reason))
+                fut.exception()  # mark retrieved: a waiter that already gave up must not log noise
         self._pending.clear()
 
     # --- commands ---------------------------------------------------------

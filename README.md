@@ -74,7 +74,8 @@ Two layers:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `AUDIO_DEVICE` | `default` | ALSA device for mpv, **by name**: `plughw:CARD=Generic_1,DEV=0`. `null` = no sound (testing). Can be changed live in the admin panel. |
+| `AUDIO_DEVICE` | `default` | ALSA device for mpv, **by name**: `plughw:CARD=Generic_1,DEV=0`. `null` = no sound (testing). Can be changed live in the admin panel. In the default **automatic** mode it is only a tie-breaker (see below). |
+| `ROLOLA_DEFAULT_AUDIO_DEVICE_MODE` | `auto` | `auto`: find the sound card after every boot by its hardware address (PCI/USB), preferring analog/USB outputs over HDMI, and re-check every minute. `manual`: always use `AUDIO_DEVICE` exactly. Switchable in *Admin → Audio & diagnostics*. |
 | `DATA_DIR` | `/data` | Database, settings, cache, credentials, yt-dlp updates. Mount a volume here. |
 | `MUSIC_DIR` | `/music` | Local library root (mount read-only). |
 | `PORT` / `HOST` | `8080` / `0.0.0.0` | HTTP listener. |
@@ -231,6 +232,7 @@ whether `/dev/snd` is writable, mpv's last errors, and a suggested device string
 | Banner "Sound card unavailable … Retrying" | mpv can't open the device. The queue is kept and retried every 10 s, so fix the device and it resumes. |
 | `/dev/snd: missing` | Add `devices: - /dev/snd:/dev/snd`. |
 | `/dev/snd: present, NOT writable` | The container user isn't in the host's `audio` group: `group_add: ["<GID of audio>"]` (`getent group audio` on the host, usually 29). |
+| Sound gone after a reboot | Card names like `Generic`/`Generic_1` swap when the kernel probes cards in a different order. Use *Sound card selection: Automatic* (the default) and, if the best guess is wrong, pick the right card under *Preferred output*: it is remembered by hardware address, not name. |
 | `Cannot get card index for X` | Wrong card name. Run `docker exec rolola aplay -l` and use `plughw:CARD=<id>,DEV=<n>`, where `<id>` is the word in brackets/after "card N:". |
 | Works until reboot, then silent | You used `hw:1,0`; card numbers change. Always use `CARD=<name>`. |
 | "Device or resource busy" | Something else holds the card (another container or host service). ALSA `hw`/`plughw` devices are exclusive. |
