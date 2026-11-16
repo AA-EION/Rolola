@@ -19,7 +19,8 @@ services:
       # - /mnt/BDATA/ODATA/Musica:/music:ro         # optional: your music folder (read-only)
     environment:
       TZ: "America/Bogota"
-      AUDIO_DEVICE: "plughw:CARD=Generic_1,DEV=0"   # analog output (card "Generic_1")
+      AUDIO_DEVICE: "plughw:CARD=Generic_1,DEV=0"   # only a hint: the card is found automatically
+      # ROLOLA_DEFAULT_AUDIO_DEVICE_MODE: "manual"  # old behaviour: always use AUDIO_DEVICE exactly
       ROLOLA_DEFAULT_LANGUAGE: "es"
       ADMIN_PASSWORD: "CambiaEstaClave2026"         # change before installing
     cap_add:

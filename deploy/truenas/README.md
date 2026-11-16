@@ -3,22 +3,42 @@
 Tested layout: TrueNAS SCALE 24.10 "Electric Eel" or newer (Docker-based apps). On 24.04 and older
 (Kubernetes apps), use *Launch Docker Image* with the same values from the table in the main README.
 
-## 1. Find the sound card and the audio group
+## 1. Sound card and audio group
 
 In **System → Shell** (as root):
 
 ```bash
-cat /proc/asound/cards
-#  0 [HDMI     ]: HDA-Intel - HDA ATI HDMI
-#  1 [Generic_1]: HD-Audio Generic - HD-Audio Generic      <- the analog output
-aplay -l | grep Generic_1        # shows the device numbers (usually DEV=0)
-getent group audio               # audio:x:29:   -> use 29
+getent group audio               # audio:x:29:   -> use 29 in group_add
+cat /proc/asound/cards           # optional: see which cards the NAS has
+#  0 [Generic  ]: HDA-Intel - HD-Audio Generic      <- GPU (HDMI)
+#  1 [Generic_1]: HDA-Intel - HD-Audio Generic      <- motherboard (analog out)
 ```
 
-Your device string is `plughw:CARD=<name in brackets>,DEV=<device>`, e.g. `plughw:CARD=Generic_1,DEV=0`.
-Use the **name**, never the number: card numbers can change between reboots.
+### Automatic sound card (default)
 
-Optional quick check from the host: `speaker-test -D plughw:CARD=Generic_1,DEV=0 -c 2 -t sine -l 1`.
+You don't have to pick the card. Rolola finds it on every start, and checks again every minute:
+
+* It recognises the card by its **hardware address** (PCI/USB slot), not by its ALSA name. Names like
+  `Generic` and `Generic_1` swap places when the kernel detects the cards in a different order after a
+  reboot, which is why a fixed `AUDIO_DEVICE` sometimes lost the sound.
+* With nothing remembered yet, it prefers **analog or USB** outputs, then S/PDIF, and uses **HDMI** last.
+* If the card disappears or the sound fails, it looks again and switches by itself, for example when the
+  driver loads late or a USB DAC is plugged back in.
+
+After installing, open **Admin → Audio & diagnostics**:
+
+* **Sound card selection: Automatic** (default). The line *Using …* shows the chosen output and why.
+* If it picked the wrong output, choose the right one under **Preferred output** and play the test
+  tone. That card is remembered by its hardware address, so it is found again after every reboot.
+* **Sound card selection: Manual** works the old way: Rolola always uses exactly the device you type, for
+  example `plughw:CARD=Generic_1,DEV=0`, and never changes it.
+
+In automatic mode `AUDIO_DEVICE` in the YAML is only a tie-breaker, so you can leave it as it is.
+`AUDIO_DEVICE: "null"` still means no sound at all. To start in manual mode, add
+`ROLOLA_DEFAULT_AUDIO_DEVICE_MODE: "manual"` to `environment`. The switch in the admin panel overrides it.
+
+Optional quick check from the host (manual mode, or to find the right card by ear):
+`speaker-test -D plughw:CARD=Generic_1,DEV=0 -c 2 -t sine -l 1`.
 
 ## 2. Create the datasets
 
@@ -41,13 +61,30 @@ Then *avatar → Admin login → Admin → Play test tone*.
 
 ## 4. Update
 
-**Apps → rolola → Edit**, change the image tag (e.g. `1.0.0` → `1.1.0`), save. Queue, history,
-settings and logins are in `/data` and survive. yt-dlp also updates itself daily inside `/data/ytdlp`,
-so YouTube fixes don't wait for a new image.
+The YAML uses the `edge` image with `pull_policy: always`. Every push to the repository builds a new
+`edge` image on GitHub (*Actions → ci*; wait until the run is green, which takes a few minutes).
+
+1. **Apps → Installed → rolola → Edit** → change nothing (or adjust the YAML) → **Save**. TrueNAS
+   recreates the container and, because of `pull_policy: always`, downloads the newest `edge` image.
+   If the app page shows an **Update** button instead, that does the same.
+2. If it is still the old version (for example, *Admin → Audio & diagnostics* has no *Sound card selection*), pull by hand
+   in **System → Shell** and restart the app:
+
+   ```bash
+   docker pull ghcr.io/aa-eion/rolola:edge
+   ```
+
+   then **Apps → rolola → Stop**, then **Start**.
+
+Queue, history, settings and logins are in the `rolola_data` volume and survive updates. yt-dlp also
+updates itself daily inside `/data/ytdlp`, so YouTube fixes don't wait for a new image.
+To pin a fixed release instead of `edge`, use a version tag such as `ghcr.io/aa-eion/rolola:1.0.0`
+and change it here when you want to update.
 
 ## Notes
 
 * No host networking needed: Rolola only needs one TCP port.
 * If port 8080 is taken, change the left side: `"8090:8080"`.
 * ZFS snapshots of `tank/apps/rolola` are a complete backup (see the main README).
-* Diagnostics: *Admin → Audio & diagnostics* shows what the container sees (`/dev/snd`, groups, cards).
+* Diagnostics: *Admin → Audio & diagnostics* shows what the container sees (`/dev/snd`, groups, cards) and
+  every output Rolola found, with the one in use.
