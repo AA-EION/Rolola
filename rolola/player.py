@@ -87,6 +87,7 @@ class Player:
         self.position_at = time.time()
         self.audio_fault: str | None = None
         self.device_info: dict[str, Any] = {}
+        self.mixer_result: dict[str, Any] | None = None
         self._last_device_check = 0.0
         self.votes = VoteBox()
         self.autoplay_buffer: list[Track] = []
@@ -144,13 +145,29 @@ class Player:
             "from": self.engine.device, "to": device, "reason": self.device_info.get("reason")}})
         self.engine.device = device
         self.audio_fault = None
+        await self.apply_mixer()
         await self.engine.restart()
         return True
+
+    async def apply_mixer(self) -> list[str]:
+        """Unmute the card and set its hardware volume: TrueNAS forgets it on every reboot."""
+        level = int(self.settings.get("hw_mixer_level") or 0)
+        if level <= 0 or self.engine.disable_audio:
+            return []
+        card = audiodev.card_of(self.engine.device)
+        if not card:
+            return []
+        done = await asyncio.get_running_loop().run_in_executor(None, audiodev.fix_mixer, card, level)
+        if done:
+            log.info("sound card mixer set", extra={"ctx": {"card": card, "changes": ", ".join(done)}})
+        self.mixer_result = {"card": card, "level": level, "changes": done, "at": time.time()}
+        return done
 
     async def start(self) -> None:
         self.engine.device = self.resolve_device()
         log.info("audio device", extra={"ctx": {"mode": self.device_mode(), "device": self.engine.device,
                                                  "reason": self.device_info.get("reason")}})
+        await self.apply_mixer()
         self.engine.initial_volume = min(self.volume, int(self.settings.get("max_volume")))
         self.stopped = bool(self.settings.get("player_stopped"))
         saved = self.settings.get("player_resume")
@@ -1083,4 +1100,5 @@ class Player:
                 self.settings.set("audio_device_pref", audiodev.fingerprint(cand))
         self.engine.device = self.resolve_device()
         self.audio_fault = None
+        await self.apply_mixer()
         await self.engine.restart()  # supervisor restarts mpv; _on_engine_restart resumes

@@ -37,6 +37,24 @@ In automatic mode `AUDIO_DEVICE` in the YAML is only a tie-breaker, so you can l
 `AUDIO_DEVICE: "null"` still means no sound at all. To start in manual mode, add
 `ROLOLA_DEFAULT_AUDIO_DEVICE_MODE: "manual"` to `environment`. The switch in the admin panel overrides it.
 
+### Sound card volume (muted after every reboot)
+
+TrueNAS doesn't save the sound card's own volume (the ALSA mixer). After a reboot, Realtek chips such as
+the ALC887 often come back with **`Master` muted at 0 %**: Rolola plays, but nothing comes out.
+
+Rolola fixes this by itself on every start. It unmutes the card's playback controls (`Master`, `Front`,
+`PCM`, `Headphone`…), sets them to **90 %**, and turns off Realtek *Auto-Mute*, which silences the rear
+jack when it thinks headphones are plugged in. Change the level in *Admin → Audio & diagnostics →
+Sound card volume (hardware)*. *Unmute & apply now* does it immediately, and `0` means Rolola never
+touches the card's mixer. Rolola's own volume slider still controls the actual loudness.
+
+To check it by hand (`Master` must say `[on]`, not `[0%] [off]`):
+
+```bash
+sudo docker exec ix-rolola-rolola-1 amixer -c Generic_1 sget Master
+sudo docker exec ix-rolola-rolola-1 amixer -c Generic_1 sset Master 90% unmute   # manual fix
+```
+
 Optional quick check from the host (manual mode, or to find the right card by ear):
 `speaker-test -D plughw:CARD=Generic_1,DEV=0 -c 2 -t sine -l 1`.
 

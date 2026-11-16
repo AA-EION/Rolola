@@ -20,6 +20,8 @@ Everything reads ``/proc/asound`` (the host's, also inside a container).
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -168,3 +170,47 @@ def resolve(pref: dict[str, Any] | None, manual: str | None, root: Path = ASOUND
         return {"device": None, "reason": "no sound card found in /proc/asound", "chosen": None, "candidates": []}
     best = ranked[0]
     return {"device": best["device"], "reason": ", ".join(best["why"]), "chosen": best, "candidates": ranked}
+
+
+# Hardware mixer controls that carry stereo playback to the jacks.  TrueNAS doesn't save the
+# ALSA mixer state, so after a reboot e.g. 'Master' on Realtek ALC887 comes back muted at 0 %.
+MIXER_CONTROLS = ("Master", "PCM", "Front", "Line Out", "Speaker", "Headphone")
+
+
+def card_of(device: str | None, root: Path = ASOUND) -> str | None:
+    """The ALSA card id a device string uses (``plughw:CARD=X,DEV=0`` -> X, ``hw:1,0`` -> its id)."""
+    if not device:
+        return None
+    card_m = _CARD_IN_DEVICE.search(device)
+    if card_m:
+        return card_m.group(1)
+    num_m = _HW_NUMERIC.match(device.strip().removeprefix("alsa/"))
+    if num_m:
+        for c in read_cards(root):
+            if c["index"] == int(num_m.group(1)):
+                return c["id"]
+    return None
+
+
+def fix_mixer(card: str, level: int) -> list[str]:
+    """Unmute the playback controls of ``card`` and set them to ``level`` %; turn off
+    Realtek "Auto-Mute" (it silences the rear jack when it thinks headphones are in).
+    Returns what was changed; controls the card doesn't have are skipped."""
+    amixer = shutil.which("amixer")
+    if not amixer or not card:
+        return []
+    level = max(1, min(int(level), 100))
+    done = []
+
+    def run(*args: str) -> bool:
+        try:
+            return subprocess.run([amixer, "-q", "-c", card, *args], capture_output=True, timeout=5).returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            return False
+
+    for ctl in MIXER_CONTROLS:
+        if run("sset", ctl, f"{level}%", "unmute"):
+            done.append(f"{ctl} {level}% on")
+    if run("sset", "Auto-Mute Mode", "Disabled"):
+        done.append("Auto-Mute off")
+    return done

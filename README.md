@@ -237,7 +237,7 @@ whether `/dev/snd` is writable, mpv's last errors, and a suggested device string
 | Works until reboot, then silent | You used `hw:1,0`; card numbers change. Always use `CARD=<name>`. |
 | "Device or resource busy" | Something else holds the card (another container or host service). ALSA `hw`/`plughw` devices are exclusive. |
 | Sound is distorted or the sample rate is rejected | Use `plughw:` (converts formats), not `hw:`. |
-| Very quiet | Unmute or raise the hardware mixer once: `docker exec -it rolola alsamixer -c Generic_1` (or `amixer -c Generic_1 sset Master 90% unmute`). |
+| Silent or very quiet (often after a reboot) | The card's hardware mixer came back muted (`Master [0%] [off]`). Rolola unmutes it and sets it to *Admin → Audio & diagnostics → Sound card volume* (90 %) on every start; *Unmute & apply now* does it right away. By hand: `docker exec rolola amixer -c Generic_1 sset Master 90% unmute`. |
 | Crackles under load | Give mpv priority: add `cap_add: [SYS_NICE]` (mpv then runs at nice −10). Everything else already runs at low priority. |
 
 List devices from inside the container: `docker exec rolola aplay -L | grep -A1 plughw`

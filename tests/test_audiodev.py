@@ -60,3 +60,25 @@ def test_usb_dac_and_numeric_lookup(tmp_path):
 """, PCM_BOOT_A + "02-00: USB Audio : USB Audio : playback 1 : capture 1\n")
     assert audiodev.resolve(None, None, root)["device"] == "plughw:CARD=Device,DEV=0"
     assert audiodev.find("hw:2,0", audiodev.candidates(root))["card_id"] == "Device"
+
+
+def test_card_of(tmp_path):
+    root = _root(tmp_path, CARDS_BOOT_A, PCM_BOOT_A)
+    assert audiodev.card_of("plughw:CARD=Generic_1,DEV=0") == "Generic_1"
+    assert audiodev.card_of("hw:1,0", root) == "Generic_1"
+    assert audiodev.card_of("null") is None and audiodev.card_of("default") is None
+
+
+def test_fix_mixer_unmutes_existing_controls(tmp_path, monkeypatch):
+    # fake amixer: knows Master/Front/Headphone and Auto-Mute (like the ALC887), logs every call
+    log = tmp_path / "calls"
+    fake = tmp_path / "amixer"
+    fake.write_text(f"""#!/bin/sh
+echo "$@" >> {log}
+case "$5" in Master|Front|Headphone|"Auto-Mute Mode") exit 0;; *) exit 1;; esac
+""")
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tmp_path}:/usr/bin:/bin")
+    done = audiodev.fix_mixer("Generic_1", 90)
+    assert done == ["Master 90% on", "Front 90% on", "Headphone 90% on", "Auto-Mute off"]
+    assert "-q -c Generic_1 sset Master 90% unmute" in log.read_text()

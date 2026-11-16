@@ -873,6 +873,15 @@ def create_app(config: Config | None = None) -> FastAPI:
         return {"device": player.audio_device(), "mode": player.device_mode(),
                 "reason": player.device_info.get("reason")}
 
+    @app.post("/api/admin/audio-mixer", tags=["admin"])
+    async def fix_mixer(ident: Identity = Depends(admin)):
+        """Unmute the sound card and set its hardware volume now (also done on every start)."""
+        if int(svc.settings.get("hw_mixer_level") or 0) <= 0:
+            raise ApiError("err.bad_setting", key="hw_mixer_level")
+        changes = await player.apply_mixer()
+        log.info("sound card mixer fixed", extra={"ctx": {"by": ident.name, "changes": ", ".join(changes)}})
+        return {"changes": changes}
+
     @app.post("/api/admin/cache/clear", tags=["admin"])
     async def clear_cache(_: Identity = Depends(admin)):
         svc.cache.clear()
@@ -906,6 +915,8 @@ def create_app(config: Config | None = None) -> FastAPI:
                 "mode": player.device_mode(),
                 "auto_reason": player.device_info.get("reason"),
                 "auto_pref": svc.settings.get("audio_device_pref"),
+                "hw_mixer_level": svc.settings.get("hw_mixer_level"),
+                "mixer": player.mixer_result,
                 "outputs": [{k: c[k] for k in ("device", "label", "kind", "score")}
                             for c in audiodev.resolve(svc.settings.get("audio_device_pref"),
                                                       player.manual_device())["candidates"]],

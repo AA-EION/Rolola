@@ -768,9 +768,22 @@ async function adminAudio(body) {
        h('div', { class: 'small faint' }, t('admin.device_auto_hint'))]
     : [h('label', { class: 'field' }, h('span', {}, t('admin.device')), custom, h('datalist', { id: 'devlist' }, ...[...options].map(([v, label]) => h('option', { value: v }, label)))),
        h('div', { class: 'small faint' }, 'env AUDIO_DEVICE = ' + a.env_device)];
+  const mixLevel = h('input', { type: 'number', min: 0, max: 100, step: 5, value: a.hw_mixer_level ?? 90, style: { width: '6em' }, 'aria-label': t('admin.hw_mixer') });
+  const mixerUi = h('div', { class: 'field' }, h('span', {}, t('admin.hw_mixer')),
+    h('div', { class: 'row wrap' }, mixLevel, h('span', { class: 'small' }, '%'),
+      h('button', { class: 'btn small', onclick: async () => {
+        const v = Math.max(0, Math.min(100, parseInt(mixLevel.value, 10) || 0));
+        if (!(await act(() => api('PUT', 'api/admin/settings', { values: { hw_mixer_level: v } })))) return;
+        if (v > 0) { const r = await act(() => api('POST', 'api/admin/audio-mixer')); if (r) toast(r.changes.length ? r.changes.join(', ') : t('admin.hw_mixer_none'), r.changes.length ? 'success' : 'error'); }
+        else toast(t('admin.saved'));
+        adminAudio(body);
+      } }, t('admin.hw_mixer_apply'))),
+    h('div', { class: 'small faint' }, t('admin.hw_mixer_hint')),
+    a.mixer ? h('div', { class: 'small muted' }, `${a.mixer.card}: ${a.mixer.changes.join(', ') || '—'}`) : null);
   setKids(body, 
     h('label', { class: 'field' }, h('span', {}, t('admin.device_mode')), modeSel),
     ...deviceUi,
+    mixerUi,
     h('div', { class: 'row wrap', style: { margin: '10px 0' } },
       auto ? null : h('button', { class: 'btn primary small', onclick: () => setDevice({ device: custom.value.trim() || null }) }, t('admin.apply')),
       h('button', { class: 'btn small', onclick: () => act(() => api('POST', 'api/admin/test-tone')) }, t('admin.test_tone')),
